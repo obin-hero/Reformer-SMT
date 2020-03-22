@@ -46,15 +46,15 @@ from deeplab_env import DeepmindLabEnv, TensorStackWrapper
 
 env = DeepmindLabEnv('nav_maze_static_01', max_step=cfg.training.max_step)
 env = TensorStackWrapper(env, k=cfg.network.num_stack)
-mode = 'train'
+mode = 'pretrain'
 replay_buffer.mode = mode
-DEBUG_TIME = True
+DEBUG_TIME = False
 def print_time(log, start):
     print(log, time.time() - start)
     return time.time()
 start_time = 0
 for episode_id in range(50000):
-    if episode_id > 20000:
+    if episode_id > 10000:
         onlineQNetwork.Memory.freeze_embedding_network()
         targetQNetwork.Memory.freeze_embedding_network()
         mode = 'train'
@@ -76,8 +76,6 @@ for episode_id in range(50000):
         if DEBUG_TIME: s = print_time('run 1step', s)
         real_env_time = time.time()
         next_obs, reward, done, _ = env.step(action)
-        #print(time.time() - real_env_time)
-        #if episode_id % VIS_INTERVAL == 0: view_imgs.append(env.render('rgb_array'))
         episode_reward += reward
         if DEBUG_TIME: s = print_time('env step', s)
         if mode == 'pretrain':
@@ -86,10 +84,11 @@ for episode_id in range(50000):
             replay_buffer.add((new_embeddings, obs['pose'], action, reward, done), episode_id, env.env.time_t-1)
         obs = next_obs
         if DEBUG_TIME: s = print_time('buffer add', s)
-        if replay_buffer.size() > 512:
-            if begin_learn is False:
-                print('learn begin!')
-                begin_learn = True
+    if replay_buffer.size() > 500:
+        if begin_learn is False:
+            print('learn begin!')
+            begin_learn = True
+        for i in range(64):
             learn_steps += 1
             if learn_steps % UPDATE_STEPS == 0:
                 targetQNetwork.load_state_dict(onlineQNetwork.state_dict())
@@ -117,20 +116,18 @@ for episode_id in range(50000):
             loss.backward()
             optimizer.step()
             writer.add_scalar('loss', loss.item(), global_step=learn_steps)
-            if DEBUG_TIME: s = print_time('update', s)
+        if DEBUG_TIME: s = print_time('update', s)
 
-            if epsilon > FINAL_EPSILON:
-                epsilon -= (INITIAL_EPSILON - FINAL_EPSILON) / EXPLORE
-            step += 1
-            print('step ', step, 'step_time', time.time() - step_time)
-            step_time = time.time()
+        if epsilon > FINAL_EPSILON:
+            epsilon -= (INITIAL_EPSILON - FINAL_EPSILON) / EXPLORE
+    step += 1
     if episode_id % VIS_INTERVAL == 0:
         video_writer = get_writer('test.mp4', fps=20)
         for im in view_imgs:
             video_writer.append_data(im)
         video_writer.close()
     writer.add_scalar('episode reward', episode_reward, global_step=episode_id)
-    if episode_id % 1 == 0:
+    if episode_id % 10 == 0:
         torch.save(onlineQNetwork.state_dict(), 'doom-policy.para')
         print('Ep {}\tMoving average score: {:.2f} time : {}\t'.format(episode_id, episode_reward.item(), time.time()-start_time),step)
         start_time = time.time()

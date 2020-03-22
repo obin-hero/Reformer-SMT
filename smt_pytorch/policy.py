@@ -39,7 +39,7 @@ class Policy(nn.Module):
 
     def run(self, obs, done, mode='train'):
         if mode == 'pretrain':# running with memory collecting
-            embedded_memory, curr_embedding = self.Memory.embedd_observations(obs['image'], obs['pose'], obs['prev_action'], done)
+            embedded_memory, curr_embedding = self.Memory.embedd_observations(obs['image'].cuda(), obs['pose'].cuda(), obs['prev_action'].cuda(), done)
             pre_embedding = None
         else:
             embedded_memory, curr_embedding, pre_embedding = self.Memory.update_memory(obs, done)

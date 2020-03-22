@@ -63,20 +63,20 @@ class TensorStackWrapper(gym.Wrapper):
         for _ in range(self.k):
             self.frames.append(ob['image'])
         obs_image_numpy = np.array(self._get_ob())
-        image_tensor = torch.from_numpy(obs_image_numpy).transpose(2,0).unsqueeze(0).cuda()
+        image_tensor = torch.from_numpy(obs_image_numpy).transpose(2,0).unsqueeze(0)
         image_tensor = image_tensor.float() / 255.0 * 2 - 1
-        pose_tensor = torch.from_numpy(ob['pose']).float().unsqueeze(0).cuda()
-        prev_action_tensor = torch.from_numpy(ob['prev_action']).float().unsqueeze(0).cuda()
+        pose_tensor = torch.from_numpy(ob['pose']).float().unsqueeze(0)
+        prev_action_tensor = torch.from_numpy(ob['prev_action']).float().unsqueeze(0)
         return {'image': image_tensor, 'pose': pose_tensor, 'prev_action': prev_action_tensor}
 
     def step(self, action):
         ob, reward, done, info = self.env.step(action)
         self.frames.append(ob['image'])
         obs_image_numpy = np.array(self._get_ob())
-        image_tensor = torch.from_numpy(obs_image_numpy).transpose(2,0).unsqueeze(0).cuda()
+        image_tensor = torch.from_numpy(obs_image_numpy).transpose(2,0).unsqueeze(0)
         image_tensor = image_tensor.float() / 255.0 * 2 - 1
-        pose_tensor = torch.from_numpy(ob['pose']).unsqueeze(0).cuda().float()
-        prev_action_tensor = torch.from_numpy(ob['prev_action']).float().unsqueeze(0).cuda()
+        pose_tensor = torch.from_numpy(ob['pose']).unsqueeze(0).float()
+        prev_action_tensor = torch.from_numpy(ob['prev_action']).float().unsqueeze(0)
         reward_tensor = torch.tensor(reward).unsqueeze(0)
         done_tensor = torch.tensor(done).unsqueeze(0)
         return_obs = {'image': image_tensor, 'pose': pose_tensor, 'prev_action': prev_action_tensor}
