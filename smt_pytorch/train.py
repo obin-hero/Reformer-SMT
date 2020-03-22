@@ -11,7 +11,7 @@ cfg = get_config()
 import torch
 import torch.nn.functional as F
 from ReplayBuffer import ReplayBuffer
-from policy import Policy
+from perception import Policy
 from torch.distributions.categorical import Categorical
 from imageio import get_writer, imread
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -43,7 +43,14 @@ previous_episode_reward = episode_reward
 VIS_INTERVAL = 100
 
 from deeplab_env import DeepmindLabEnv, TensorStackWrapper
-
+from multi_env import VectorEnv
+from multi_env import _make_env_fn
+envs = VectorEnv(_make_env_fn, [{'scene': 'nav_max_static_01', 'rank': i} for i in range(3)])
+obs = envs.reset()
+print(len(obs))
+for i in range(obs):
+    print(i.keys())
+    print(i['image'].shape)
 env = DeepmindLabEnv('nav_maze_static_01', max_step=cfg.training.max_step)
 env = TensorStackWrapper(env, k=cfg.network.num_stack)
 mode = 'pretrain'

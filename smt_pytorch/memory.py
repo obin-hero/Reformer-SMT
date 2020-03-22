@@ -27,35 +27,33 @@ class Embedding(nn.Module):
         # 'rgb', 'depth', 'pose'
         assert len(cfg.network.inputs) > 0
         self.inputs = cfg.network.inputs
-        image_ch = 0
-        self.use_rgb = self.use_depth = self.use_action = self.use_pose = False
-        if 'rgb' in self.inputs:
-            self.use_rgb = True
-            image_ch += 3
-        if 'depth' in self.inputs:
-            self.use_depth = True
-            image_ch += 1
-        self.embed_image = resnet18(first_ch=image_ch*cfg.network.num_stack, num_classes=64).cuda()
+
+        if 'image' in self.inputs:
+            self.use_image = True
+            self.embed_image = resnet18(first_ch=4*cfg.network.num_stack, num_classes=64).cuda()
+        else: self.use_image = False
 
         if 'prev_action' in self.inputs:
             self.use_action = True
             self.action_dim = cfg.action_dim
-            self.embed_act = nn.Linear(self.action_dim,16)
+            self.embed_act = nn.Linear(self.action_dim,16).cuda()
+        else: self.use_action = False
 
         if 'pose' in self.inputs:
             self.use_pose = True
             # p = (x/lambda, y/lambda, cos(th), sin(th), exp(-t))
             self.pose_dim = cfg.pose_dim
-            self.embed_pose = nn.Linear(self.pose_dim,16)
+            self.embed_pose = nn.Linear(self.pose_dim,16).cuda()
+        else: self.use_pose = False
 
-        final_ch = 64 * (self.use_rgb) + 16 * (self.use_action + self.use_pose)
-        self.final_embed = nn.Linear(final_ch, 128)
+        final_ch = 64 * (self.use_image) + 16 * (self.use_action + self.use_pose)
+        self.final_embed = nn.Linear(final_ch, 128).cuda()
 
 import time
 class SceneMemory(object):
     # B * M (max_memory_size) * E (embedding)
     def __init__(self, cfg) -> None:
-        self.B = cfg.training.num_processes
+        self.B = cfg.training.num_envs
         self.max_memory_size = cfg.training.max_memory_size
         self.embedding_size = cfg.training.embedding_size
         self.embed_network = Embedding(cfg)
@@ -80,28 +78,28 @@ class SceneMemory(object):
         self.memory_buffer = torch.zeros([self.B, self.max_memory_size, embedding_size_wo_pose],dtype=torch.float32).cuda()
         self.memory_mask = torch.zeros([self.B, self.max_memory_size], dtype=torch.bool).cuda()
 
-    def update_memory(self, obs, done):
-        s = time.time()
+    def update_memory(self, obs, masks):
         new_embeddings = []
         new_embeddings.append(self.embed_network.embed_image(obs['image']))
         new_embeddings.append(self.embed_network.embed_act(obs['prev_action']))
         new_embedding = torch.cat(new_embeddings,1)
-        self.memory_buffer = torch.cat([new_embedding.unsqueeze(1) * (1 - done.float().to(new_embedding.device)), self.memory_buffer[:, :-1]], 1)
-        self.memory_mask = torch.cat([(~done).unsqueeze(1).to(self.memory_mask.device), self.memory_mask[:,:-1]],1)
+        self.memory_buffer = torch.cat([new_embedding.unsqueeze(1) * masks, self.memory_buffer[:, :-1]], 1)
+        self.memory_mask = torch.cat([masks.bool(), self.memory_mask[:,:-1]],1)
 
         curr_rel_pose = torch.zeros([self.B, 1, 5]).cuda()
         curr_rel_pose[:, :, 2] = 1.0
-        curr_rel_pose[:, :, -1] = torch.exp(-obs['pose'][:,-1]).cuda()
+        curr_rel_pose[:, :, -1] = torch.exp(-obs['pose'][:,-1]).unsqueeze(1)
         curr_pose_embedding = self.embed_network.embed_pose(curr_rel_pose)
         new_embeddings.append(curr_pose_embedding)
 
-        self.gt_pose_buffer = torch.cat([obs['pose'].unsqueeze(1)*(1-done.float().to(new_embedding.device)),self.gt_pose_buffer[:,:-1]],1)
+        self.gt_pose_buffer = torch.cat([obs['pose'].unsqueeze(1)*masks ,self.gt_pose_buffer[:,:-1]],1)
         relative_pose_buffer = self.get_relative_poses_embedding(obs['pose'])
 
         embedded_memory = []
         length = self.memory_mask.sum(dim=1)
-        memory_buffer = torch.cat((self.memory_buffer[:,:length], relative_pose_buffer),-1)
-        for i in range(length):
+        max_length = int(length.max())
+        memory_buffer = torch.cat((self.memory_buffer[:,:max_length], relative_pose_buffer),-1)
+        for i in range(max_length):
             embedded_memory.append(self.embed_network.final_embed(memory_buffer[:,i]))
         embedded_memory = torch.stack(embedded_memory,1)
         return embedded_memory, embedded_memory[:,0:1], self.memory_buffer[:,0]
@@ -128,7 +126,8 @@ class SceneMemory(object):
         past_relative_poses = torch.stack([rel_x, rel_y, torch.cos(rel_yaw), torch.sin(rel_yaw), exp_t],2)
         past_pose_embeddings = []
         length = self.memory_mask.sum(dim=1)
-        for i in range(length):
+        max_length = int(length.max())
+        for i in range(max_length):
             if self.memory_mask[:,i].sum() == 0 : break
             past_pose_embeddings.append(self.embed_network.embed_pose(past_relative_poses[:,i]))
         pose_embedding = torch.stack(past_pose_embeddings, 1) * self.memory_mask[:,:i+1].unsqueeze(-1).float()
@@ -155,7 +154,7 @@ class SceneMemory(object):
 
     def embedd_observations(self, images, poses, prev_actions, done):
         # B * L * 3 * H * W : L will be 1
-        #L = images.shape[1]
+        images, poses, prev_actions = images.squeeze(1), poses.squeeze(1), prev_actions.squeeze(1)
         embedded_memory = []
         poses_x, poses_y, poses_th, time_t = poses[:,0], poses[:,1] , poses[:,2], poses[:,3]
         poses = torch.stack([poses_x, poses_y, torch.cos(poses_th), torch.sin(poses_th), torch.exp(-time_t)],1)

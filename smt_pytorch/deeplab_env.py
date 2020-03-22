@@ -52,45 +52,23 @@ import time
 def print_time(log, start):
     print(log, time.time() - start)
     return time.time()
-class TensorStackWrapper(gym.Wrapper):
+class DeepLabMultiWrapper(gym.Wrapper):
     def __init__(self, env, k=4):
+        env.action_space = env.action_spaces[0]
+        env.observation_space = env.observation_spaces[0]
+        env.reward_range = [0., 10.0]
+        env.metadata = {'render.modes': ['rgb_array']}
         gym.Wrapper.__init__(self, env)
         self.k = k
         self.frames = deque([], maxlen=k)
 
     def reset(self):
         ob = self.env.reset()
-        for _ in range(self.k):
-            self.frames.append(ob['image'])
-        obs_image_numpy = np.array(self._get_ob())
-        image_tensor = torch.from_numpy(obs_image_numpy).transpose(2,0).unsqueeze(0)
-        image_tensor = image_tensor.float() / 255.0 * 2 - 1
-        pose_tensor = torch.from_numpy(ob['pose']).float().unsqueeze(0)
-        prev_action_tensor = torch.from_numpy(ob['prev_action']).float().unsqueeze(0)
-        return {'image': image_tensor, 'pose': pose_tensor, 'prev_action': prev_action_tensor}
+        return ob
 
     def step(self, action):
         ob, reward, done, info = self.env.step(action)
-        self.frames.append(ob['image'])
-        obs_image_numpy = np.array(self._get_ob())
-        image_tensor = torch.from_numpy(obs_image_numpy).transpose(2,0).unsqueeze(0)
-        image_tensor = image_tensor.float() / 255.0 * 2 - 1
-        pose_tensor = torch.from_numpy(ob['pose']).unsqueeze(0).float()
-        prev_action_tensor = torch.from_numpy(ob['prev_action']).float().unsqueeze(0)
-        reward_tensor = torch.tensor(reward).unsqueeze(0)
-        done_tensor = torch.tensor(done).unsqueeze(0)
-        return_obs = {'image': image_tensor, 'pose': pose_tensor, 'prev_action': prev_action_tensor}
-        return return_obs, reward_tensor, done_tensor, info
-
-    def _get_ob(self):
-        assert len(self.frames) == self.k
-        return LazyFrames(list(self.frames))
-
-
-
-
-
-
+        return ob, reward, done, info
 
 class DeepmindLabEnv(gym.Env):
     metadata = {'render.modes': ['rgb_array']}
@@ -106,16 +84,20 @@ class DeepmindLabEnv(gym.Env):
 
         self.action_space = gym.spaces.Discrete(len(ACTION_LIST))
         self.action_dim = self.action_space.n
-        self.observation_space = OrderedDict({'image': gym.spaces.Box(0, 255, (height, width, 4), dtype = np.uint8),
-                                              'pose': gym.spaces.Box(-np.Inf, np.Inf, (3,), dtype=np.float32),
+        self.observation_space = OrderedDict({'image': gym.spaces.Box(0, 255, (4, height, width), dtype = np.uint8),
+                                              'pose': gym.spaces.Box(-np.Inf, np.Inf, (4,), dtype=np.float32),
                                               'prev_action': gym.spaces.Box(0, 1, (self.action_dim,), dtype=np.float32)})
 
         self._last_observation = None
         self._last_action = None
         self._max_step = max_step
-        self.time_t = 0
+        self.time_t = -1
+        self.episode_id = -1
+        self.prev_pose = 0
+        self.stuck_flag = 0
 
     def step(self, action):
+        if isinstance(action, dict): action = action['action']
         reward = self._lab.step(ACTION_LIST[action], num_steps=4)
         self.time_t += 1
         done = not self._lab.is_running()
@@ -126,27 +108,39 @@ class DeepmindLabEnv(gym.Env):
         image = self._last_observation[self._colors]
         pose_x, pose_y = self._last_observation['DEBUG.POS.TRANS'][0:2] / 400
         pose_yaw = self._last_observation['DEBUG.POS.ROT'][1]/180. * np.pi
-        #print(self._lab.observations()['DEBUG.POS.TRANS'],self._lab.observations()['DEBUG.POS.ROT'])
-        #if done : print('------------------------------done!')
+
+        if self.prev_pose is not None:
+            progress = np.sqrt(((pose_x - self.prev_pose[0])**2 + (pose_y - self.prev_pose[1])**2))
+        else: progress = 0.0
+        if progress < 0.01 : self.stuck_flag += 1
+        if self.stuck_flag > 20 :
+            done = True
+            self.stuck_flag = 0.0
+        #print(self.seed, progress, self.stuck_flag)
+        self.prev_pose = [pose_x, pose_y]
         self._last_action = action
-        obs = {'image': image, 'pose': np.array([pose_x, pose_y, pose_yaw, self.time_t]), 'prev_action': np.eye(self.action_dim)[self._last_action]}
-        return obs, reward, done, dict()
+        obs = {'image': image.transpose(2,1,0), 'pose': np.array([pose_x, pose_y, pose_yaw, self.time_t]), 'prev_action': np.eye(self.action_dim)[self._last_action]}
+        return obs, reward, done, {'episode_id': self.episode_id, 'step_id':self.time_t}
 
 
     def reset(self):
         self._lab.reset()
         self._last_observation = self._lab.observations()
-        self.time_t = 0
+        self.time_t = -1
         image = self._last_observation[self._colors]
         pose_x, pose_y = self._last_observation['DEBUG.POS.TRANS'][0:2] / 400
         pose_yaw = self._last_observation['DEBUG.POS.ROT'][1]/180. * np.pi
         #print(self._lab.observations()['DEBUG.POS.TRANS'],self._lab.observations()['DEBUG.POS.ROT'])
         #if done : print('------------------------------done!')
         self._last_action = None
-        obs = {'image': image, 'pose': np.array([pose_x, pose_y, pose_yaw, self.time_t]), 'prev_action': np.zeros(self.action_dim)}
+        obs = {'image': image.transpose(2,1,0), 'pose': np.array([pose_x, pose_y, pose_yaw, self.time_t]), 'prev_action': np.zeros(self.action_dim)}
+        self.episode_id += 1
+        self.prev_pose = None
+        self.stuck_flag = 0
         return obs
 
     def seed(self, seed = None):
+        self.seed = seed
         self._lab.reset(seed=seed)
 
     def close(self):
@@ -157,14 +151,16 @@ class DeepmindLabEnv(gym.Env):
             obs = self._lab.observations()[self._colors]
             map = self._lab.observations()['DEBUG.CAMERA_INTERLEAVED.TOP_DOWN']
             view_img = np.concatenate([obs[:,:,:3],map],1)
+            view_img = cv2.resize(view_img, dsize=None, fx=2.0, fy=2.0)
             return view_img
-        elif mode is 'human':
+        elif mode == 'human':
             obs = self._lab.observations()[self._colors]
             map = self._lab.observations()['DEBUG.CAMERA_INTERLEAVED.TOP_DOWN']
             view_img = np.concatenate([obs[:,:,:3],map],1)
             view_img = cv2.resize(view_img, dsize=None, fx=2.0, fy=2.0)
-            cv2.imshow('render', view_img[:,:,[2,1,0]])
-            cv2.waitKey(0)
+            return view_img
+            #cv2.imshow('render', view_img[:,:,[2,1,0]])
+            #cv2.waitKey(0)
            #pop up a window and render
         else:
             super(DeepmindLabEnv, self).render(mode=mode) # just raise an exception

@@ -22,46 +22,40 @@ class Attblock(nn.Module):
         return x
 
 import time
-class Policy(nn.Module):
+class Perception(nn.Module):
     def __init__(self,cfg):
-        super(Policy, self).__init__()
+        super(Perception, self).__init__()
         self.Encoder = Attblock(cfg.attention.n_head, cfg.attention.d_model, cfg.attention.d_k, cfg.attention.d_v, cfg.attention.dropout)
         self.Decoder = Attblock(cfg.attention.n_head, cfg.attention.d_model, cfg.attention.d_k, cfg.attention.d_v, cfg.attention.dropout)
-        self.act = nn.Sequential(nn.Linear(cfg.attention.d_model, cfg.attention.d_model),
-                                 nn.ReLU(),
-                                 nn.Linear(cfg.attention.d_model, cfg.action_dim))
+        self.output_size = cfg.attention.d_model
         self.Memory = SceneMemory(cfg)
         self.Memory.reset_all()
 
     def cuda(self, device=None):
-        super(Policy, self).cuda(device)
+        super(Perception, self).cuda(device)
         self.Memory.embed_network = self.Memory.embed_network.cuda()
 
-    def run(self, obs, done, mode='train'):
+    def act(self, obs, masks, mode='train'): # with memory
+        obs['image'] = obs['image'] / 255.0 * 2 - 1.0
         if mode == 'pretrain':# running with memory collecting
-            embedded_memory, curr_embedding = self.Memory.embedd_observations(obs['image'].cuda(), obs['pose'].cuda(), obs['prev_action'].cuda(), done)
+            embedded_memory, curr_embedding = self.Memory.embedd_observations(obs['image'].cuda(), obs['pose'].cuda(), obs['prev_action'].cuda(), masks)
             pre_embedding = None
         else:
-            embedded_memory, curr_embedding, pre_embedding = self.Memory.update_memory(obs, done)
+            embedded_memory, curr_embedding, pre_embedding = self.Memory.update_memory(obs, masks)
         C = self.Encoder(embedded_memory, embedded_memory)
         x = self.Decoder(curr_embedding, C)
-        x = self.act(x)
-        return x, pre_embedding
+        return x.squeeze(1), pre_embedding
 
-    def forward_with_obs(self, obs, done): # estimate Q value with given observations
-        images, poses, prev_actions = obs
-        embedded_memory, curr_embedding = self.Memory.embedd_observations(images, poses, prev_actions, done)
-        C = self.Encoder(embedded_memory, embedded_memory)
-        x = self.Decoder(curr_embedding, C)
-        x = self.act(x)
-        x = x.squeeze(1)
-        return x#, embedded_memory
 
-    def forward_with_embeddings(self, obs, done): # esitamate Q value with given pre-embedded memory
-        batch_pre_embedding, batch_pose = obs
-        embedded_memory, curr_embedding = self.Memory.embedd_with_pre_embeds(batch_pre_embedding.cuda(), batch_pose.cuda(), done)
+    def forward(self, observations, masks, mode='train'): # without memory
+        if mode == 'pretrain':
+            observations['image'] = observations['image'].float() / 255.0 * 2 - 1.0
+            images, poses, prev_actions = observations['image'], observations['pose'], observations['prev_action']
+            embedded_memory, curr_embedding = self.Memory.embedd_observations(images, poses, prev_actions, masks)
+        else:
+            batch_pre_embedding, batch_pose = observations
+            embedded_memory, curr_embedding = self.Memory.embedd_with_pre_embeds(batch_pre_embedding.cuda(),
+                                                                                 batch_pose.cuda(), masks)
         C = self.Encoder(embedded_memory, embedded_memory)
         x = self.Decoder(curr_embedding, C)
-        x = self.act(x)
-        x = x.squeeze(1)
-        return x#, embedded_memory
+        return x.squeeze(1)
