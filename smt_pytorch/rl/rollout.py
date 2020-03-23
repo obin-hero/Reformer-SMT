@@ -19,6 +19,7 @@ class RolloutSensorDictReplayBuffer(object):
     def __init__(self, cfg, num_steps, num_processes, obs_shape, action_space, actor_critic, use_gae, gamma, tau,
                  max_episode_size = 1000, max_episode_step_size = 500, agent_memory_size=None):
 
+        self.state_size = 128
         self.num_steps = num_steps
         self.num_processes = num_processes
         self.max_episode_size = max_episode_size
@@ -34,6 +35,7 @@ class RolloutSensorDictReplayBuffer(object):
             else: obs_dict[k] = torch.zeros(max_episode_size, 500, *ob_shape)
         self.observations = SensorDict(obs_dict)
         self.poses = torch.zeros(max_episode_size, max_episode_step_size, 4, requires_grad=False)
+        self.states = torch.zeros(max_episode_size, max_episode_step_size, self.state_size, requires_grad=False)
         self.rewards = torch.zeros(max_episode_size, max_episode_step_size, 1, requires_grad=False)
         self.value_preds = torch.zeros(max_episode_size, max_episode_step_size, 1, requires_grad=False)
         self.returns = torch.zeros(max_episode_size, max_episode_step_size, num_processes, 1, requires_grad=False)
@@ -81,34 +83,36 @@ class RolloutSensorDictReplayBuffer(object):
         self.actor_critic = self.actor_critic.cuda()
     
 
-    def insert(self, episodes, steps, current_obs, action, action_log_prob, value_pred, reward, mask, mode):
+    def insert(self, episodes, steps, current_obs, state, action, action_log_prob, value_pred, reward, mask, mode):
         modules = []
         inputs = []
         for p_num in range(self.num_processes):
             ep_id, step = (episodes[p_num]*self.num_processes + p_num)%self.max_episode_size, steps[p_num]
+            next_step = (step + 1)%self.max_episode_step_size
             if self.curr_episodes[ep_id] and step == 0: self.reset_episode(ep_id)
             #print(ep_id, step, self.actions.shape)
-            modules.extend([self.actions[ep_id, step].copy_,
+            modules.extend([self.states[ep_id, next_step].copy_,
+                           self.actions[ep_id, step].copy_,
                            self.action_log_probs[ep_id, step].copy_,
                            self.value_preds[ep_id, step].copy_,
                            self.rewards[ep_id, step].copy_,
-                           self.masks[ep_id, step].copy_])
-            inputs.extend([action[p_num], action_log_prob[p_num], value_pred[p_num], reward[p_num], mask[p_num]])
+                           self.masks[ep_id, next_step].copy_])
+            inputs.extend([state[p_num], action[p_num], action_log_prob[p_num], value_pred[p_num], reward[p_num], mask[p_num]])
             self.curr_episodes[ep_id] = True
             self.curr_steps[ep_id] = step
 
             if mode == 'train':
                 poses, pred_embedding = current_obs
-                modules.extend([self.poses[ep_id, step].copy_, self.pre_embeddings[ep_id, step].copy_])
+                modules.extend([self.poses[ep_id, next_step].copy_, self.pre_embeddings[ep_id, next_step].copy_])
                 inputs.extend([poses[p_num], pred_embedding[p_num]])
+
         nn.parallel.parallel_apply(modules, inputs)
         if mode == 'pretrain':
             for p_num in range(self.num_processes):
                 ep_id, step = (episodes[p_num]*self.num_processes + p_num)%self.max_episode_size, steps[p_num]
-                modules = ([self.observations[k][ep_id, step].copy_ for k in self.observations])
+                modules = ([self.observations[k][ep_id, next_step].copy_ for k in self.observations])
                 inputs = tuple([(current_obs[k].peek()[p_num],) for k in self.observations])
                 nn.parallel.parallel_apply(modules, inputs)
-
         self.curr_envs_episodes = np.maximum(np.array(episodes), self.curr_envs_episodes)
 
 
@@ -159,6 +163,7 @@ class RolloutSensorDictReplayBuffer(object):
         observations_sample = SensorDict(
             {k: torch.zeros(self.num_steps + 1, *ob_shape) for k, ob_shape in
              self.obs_shape.items()}).apply(lambda k, v: v.cuda())
+        states_sample = torch.zeros(self.num_steps + 1, self.state_size).cuda()
         embeddings_sample = torch.zeros(self.num_steps + 1, self.agent_memory_size, self.pre_embedding_size).cuda()
         poses_sample = torch.zeros(self.num_steps+1, self.agent_memory_size, 4)
         rewards_sample = torch.zeros(self.num_steps, 1).cuda()
@@ -179,14 +184,20 @@ class RolloutSensorDictReplayBuffer(object):
                 for k in self.observations:
                     observations_sample[k][sample_idx] = self.observations[k][sample_ep, sample_step].cuda()
                 with torch.no_grad():
-                    values_sample[sample_idx] = self.actor_critic.get_value(self.observations.dim2_att(sample_ep, [memory_start, sample_step+1]).apply(lambda k, v: v.cuda()), self.masks[sample_ep, sample_step].cuda(), mode)
+                    values_sample[sample_idx] = self.actor_critic.get_value(self.observations.dim2_att(sample_ep, [memory_start, sample_step+1]).apply(lambda k, v: v.cuda()),
+                                                                            self.states[sample_ep, sample_step].cuda().unsqueeze(0),
+                                                                            self.masks[sample_ep, sample_step].cuda().unsqueeze(0),
+                                                                            mode)
             else:
                 embeddings_sample[sample_idx, :memory_size+1] = self.pre_embeddings[sample_ep, memory_start:sample_step+1]
                 poses_sample[sample_idx, :memory_size+1] = self.poses[sample_ep, memory_start:sample_step+1]
                 with torch.no_grad():
                     embed_obs = (self.pre_embeddings[sample_ep, memory_start:sample_step+1].unsqueeze(0).cuda(),
                                  self.poses[sample_ep, memory_start:sample_step+1].unsqueeze(0).cuda())
-                    values_sample[sample_idx] = self.actor_critic.get_value(embed_obs, self.masks[sample_ep, sample_step].cuda(), mode)
+                    values_sample[sample_idx] = self.actor_critic.get_value(embed_obs,
+                                                                            self.states[sample_ep, sample_step].cuda().unsqueeze(0),
+                                                                            self.masks[sample_ep, sample_step].cuda().unsqueeze(0), mode)
+            states_sample[sample_idx] = self.states[sample_ep, sample_step].cuda()
             rewards_sample[sample_idx] = self.rewards[sample_ep, sample_step].cuda()
             action_log_probs_sample[sample_idx] = self.action_log_probs[sample_ep, sample_step].cuda()
             actions_sample[sample_idx] = self.actions[sample_ep, sample_step].cuda()
@@ -198,11 +209,15 @@ class RolloutSensorDictReplayBuffer(object):
             memory_start = max(sample_step + 1 - self.agent_memory_size, 0)
             if mode == 'pretrain':
                 next_value = self.actor_critic.get_value(
-                    self.observations.dim2_att(sample_ep, [memory_start, sample_step+1]).apply(lambda k, v: v.cuda()),self.masks[sample_ep, sample_step].cuda(),mode)
+                    self.observations.dim2_att(sample_ep, [memory_start, sample_step+1]).apply(lambda k, v: v.cuda()),
+                    self.states[sample_ep, sample_step].cuda().unsqueeze(0),
+                    self.masks[sample_ep, sample_step].cuda().unsqueeze(0),mode)
             else :
                 embed_obs = (self.pre_embeddings[sample_ep, memory_start:sample_step + 1].unsqueeze(0).cuda(),
                              self.poses[sample_ep, memory_start:sample_step + 1].unsqueeze(0).cuda())
-                next_value = self.actor_critic.get_value(embed_obs, self.masks[sample_ep, sample_step+1].cuda(), mode)
+                next_value = self.actor_critic.get_value(embed_obs,
+                                                         self.states[sample_ep, sample_step].cuda().unsqueeze(0),
+                                                         self.masks[sample_ep, sample_step].cuda(), mode)
         if self.use_gae:
             values_sample[-1] = next_value
             gae = 0
@@ -224,12 +239,13 @@ class RolloutSensorDictReplayBuffer(object):
                 embeddings_batch = embeddings_sample[indices]
                 poses_batch = poses_sample[indices]
                 observations_batch = [embeddings_batch, poses_batch]
+            states_batch = states_sample[indices]
             actions_batch = actions_sample[indices]
             return_batch = returns_sample[indices]
             masks_batch = masks_sample[indices]
             old_action_log_probs_batch = action_log_probs_sample[indices]
             adv_targ = advantages[indices]
-            yield observations_batch, actions_batch, return_batch, masks_batch, old_action_log_probs_batch, adv_targ
+            yield observations_batch, states_batch, actions_batch, return_batch, masks_batch, old_action_log_probs_batch, adv_targ
 
 
 

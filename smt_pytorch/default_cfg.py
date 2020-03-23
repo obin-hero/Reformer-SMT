@@ -3,7 +3,7 @@ from yacs.config import CfgNode
 
 C = CfgNode()
 C.seed = 0
-C.action_dim = 4
+C.action_dim = 3
 C.pose_dim = 5
 C.is_train = True
 

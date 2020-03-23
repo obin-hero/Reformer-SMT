@@ -45,11 +45,11 @@ EPISODE_COMMAND = "current_episode"
 from time import time
 
 from deeplab_env import DeepmindLabEnv
+from vizdoom_env import VizDoomEnv
 from rl.visdommonitor import VisdomMonitor
 import os
 
-
-
+# basic make_env_fn is deep lab
 def _make_env_fn(cfg, scene, rank,
                 log_dir,
                 visdom_name = 'main',
@@ -58,6 +58,25 @@ def _make_env_fn(cfg, scene, rank,
                 visdom_server = 'localhost',
                 visdom_port = '8097'):
     env = DeepmindLabEnv(cfg,scene)
+    env.seed(rank)
+    env = VisdomMonitor(env,
+                        directory=os.path.join(log_dir, visdom_name),
+                        video_callable=lambda x: x % vis_interval == 0,
+                        uid=str(rank),
+                        server=visdom_server,
+                        port=visdom_port,
+                        visdom_log_file=visdom_log_file,
+                        visdom_env=visdom_name)
+
+    return env
+def vizdoom_make_env_fn(cfg, rank,
+                log_dir,
+                visdom_name = 'main',
+                visdom_log_file = None,
+                vis_interval = 200,
+                visdom_server = 'localhost',
+                visdom_port = '8097'):
+    env = VizDoomEnv(cfg)
     env.seed(rank)
     env = VisdomMonitor(env,
                         directory=os.path.join(log_dir, visdom_name),
@@ -516,7 +535,7 @@ class ThreadedVectorEnv(VectorEnv):
 
 
 import torch
-class DeepLabPreprocessVectorEnv(VectorEnv):
+class PreprocessVectorEnv(VectorEnv):
     def __init__(
             self,
             make_env_fn,
