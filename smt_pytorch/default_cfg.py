@@ -3,14 +3,14 @@ from yacs.config import CfgNode
 
 C = CfgNode()
 C.seed = 0
-C.action_dim = 6
+C.action_dim = 4
 C.pose_dim = 5
 C.is_train = True
 
 C.saving = CfgNode()
 C.saving.version = 'base'
 C.saving.save_dir = '.'
-C.saving.log_interval = 100
+C.saving.log_interval = 10
 C.saving.vis_interval = 200
 C.saving.save_interval = 1000
 
@@ -19,7 +19,7 @@ C.training.batch_size = 64
 C.training.max_memory_size = 100
 C.training.embedding_size = 128
 C.training.max_step = 500
-C.training.num_envs = 4
+C.training.num_envs = 6
 C.training.gpu = [0]
 C.training.lr = 1e-4
 
@@ -35,7 +35,7 @@ C.network.inputs = ['image', 'prev_action', 'pose']
 C.network.num_stack = 1
 
 C.replay_buffer = CfgNode()
-C.replay_buffer.max_episode = 1000
+C.replay_buffer.max_episode = 1002
 
 
 C.visdom = CfgNode()
@@ -51,8 +51,8 @@ C.RL.ENTROPY_COEF = 1e-4
 C.RL.EPS = 1e-5
 C.RL.GAMMA = 0.99
 C.RL.INTERNAL_STATE_SIZE = 512
-C.RL.NUM_STEPS = 256 # length of each rollout
-C.RL.NUM_MINI_BATCH = 8 # size of ppo mini batch
+C.RL.NUM_STEPS = 512 # length of each rollout
+C.RL.NUM_MINI_BATCH = 4 # size of ppo mini batch
 C.RL.NUM_STACK = 1 # frames that each cell can see
 C.RL.MAX_GRAD_NORM = 0.5
 C.RL.PPO_EPOCH = 8

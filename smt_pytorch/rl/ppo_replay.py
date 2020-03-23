@@ -65,6 +65,7 @@ class PPOReplay(object):
             start = time.time()
             s_num = 0
             s = time.time()
+            #print(self.num_mini_batch)
             for sample in data_generator:
                 s_num += 1
                 if debug_time:
@@ -118,7 +119,7 @@ class PPOReplay(object):
                 #     except:
                 #         info[loss] = intrinsic_loss_dict[loss].item()
                 max_importance_weight_epoch = max(torch.max(ratio).item(), max_importance_weight_epoch)
-            print('ppo epoch %d _ %d done %.4f sample num %d'%(e_t, e, time.time()-start, s_num))
+            #print('ppo epoch %d _ %d done %.4f sample num %d'%(e_t, e, time.time()-start, s_num))
 
         num_updates = 2 * self.ppo_epoch * self.num_mini_batch  # twice since on_policy and off_policy
         value_loss_epoch /= num_updates

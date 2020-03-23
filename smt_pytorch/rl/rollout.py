@@ -87,6 +87,7 @@ class RolloutSensorDictReplayBuffer(object):
         for p_num in range(self.num_processes):
             ep_id, step = (episodes[p_num]*self.num_processes + p_num)%self.max_episode_size, steps[p_num]
             if self.curr_episodes[ep_id] and step == 0: self.reset_episode(ep_id)
+            #print(ep_id, step, self.actions.shape)
             modules.extend([self.actions[ep_id, step].copy_,
                            self.action_log_probs[ep_id, step].copy_,
                            self.value_preds[ep_id, step].copy_,
@@ -130,25 +131,30 @@ class RolloutSensorDictReplayBuffer(object):
         saved_episodes = self.curr_episodes.sum()
         if on_policy or saved_episodes < self.max_episode_size:
             # get trajectory from most recent episodes
-            episode_id = self.curr_episodes.sum() - 1
+            saved_ep_inds = torch.where(self.curr_episodes)[0][-self.num_processes:]
+            if len(saved_ep_inds) == 0 :
+                episode_id = self.curr_episodes.sum() - 1
+            else:
+                episode_id = np.random.choice(saved_ep_inds)
             step_id = self.curr_steps[episode_id]
         else:
             saved_ep_inds = torch.where(self.curr_episodes)[0]
-            while True:
-                episode = np.random.choice(saved_ep_inds)
-                step_id = np.random.choice(1, self.curr_steps[episode])
+            episode_id = np.random.choice(saved_ep_inds)
+            step_id = np.random.randint(0, self.curr_steps[episode_id]) if self.curr_steps[episode_id] > 0 else 0
 
         if step_id >= self.num_steps:
             start_idx = (step_id - self.num_steps)
-            step_indicies = [[episode_id, start_idx + i] for i in range(self.num_steps)]
+            step_indices = [[episode_id, start_idx + i] for i in range(self.num_steps)]
         else:
-            step_indicies = [[episode_id, i] for i in range(step_id)]
-            for ep in range(episode_id-1,0,-1):
-                if len(step_indicies) >= self.num_steps:
-                    step_indicies = step_indicies[:self.num_steps+1]
+            step_indices = [[episode_id, i] for i in range(step_id)]
+            ep = (episode_id - 1)%self.max_episode_size
+            while True:
+                if len(step_indices) >= self.num_steps:
+                    step_indices = step_indices[0:self.num_steps]
                     break
                 step = self.curr_steps[ep]
-                step_indicies.extend([[ep, i] for i in range(step)])
+                step_indices.extend([[ep, i] for i in range(step)])
+                ep = (ep - 1)%self.max_episode_size
 
         observations_sample = SensorDict(
             {k: torch.zeros(self.num_steps + 1, *ob_shape) for k, ob_shape in
@@ -164,7 +170,8 @@ class RolloutSensorDictReplayBuffer(object):
 
         # Fill the buffers and get values
         sample_idx = 0
-        for step_info in step_indicies[:-1]:
+        #print(len(step_indices))
+        for step_info in step_indices[:-1]:
             sample_ep, sample_step = step_info
             memory_start = max(sample_step + 1 - self.agent_memory_size, 0)
             memory_size = sample_step - memory_start
@@ -185,10 +192,9 @@ class RolloutSensorDictReplayBuffer(object):
             actions_sample[sample_idx] = self.actions[sample_ep, sample_step].cuda()
             masks_sample[sample_idx] = self.masks[sample_ep, sample_step].cuda()
             sample_idx += 1
-
         # we need to compute returns and advantages on the fly, since we now have updated value function
         with torch.no_grad():
-            sample_ep, sample_step = step_indicies[-1]
+            sample_ep, sample_step = step_indices[-1]
             memory_start = max(sample_step + 1 - self.agent_memory_size, 0)
             if mode == 'pretrain':
                 next_value = self.actor_critic.get_value(

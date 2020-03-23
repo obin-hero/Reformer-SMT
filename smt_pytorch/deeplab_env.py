@@ -72,7 +72,7 @@ class DeepLabMultiWrapper(gym.Wrapper):
 
 class DeepmindLabEnv(gym.Env):
     metadata = {'render.modes': ['rgb_array']}
-    def __init__(self, scene, colors = 'RGBD_INTERLEAVED', width = 64, height = 64, max_step = 512, **kwargs):
+    def __init__(self, cfg, scene, colors = 'RGBD_INTERLEAVED', width = 64, height = 64, max_step = 512, **kwargs):
         super(DeepmindLabEnv, self).__init__(**kwargs)
 
         if not scene in LEVELS:
@@ -90,7 +90,7 @@ class DeepmindLabEnv(gym.Env):
 
         self._last_observation = None
         self._last_action = None
-        self._max_step = max_step
+        self._max_step = cfg.training.max_step
         self.time_t = -1
         self.episode_id = -1
         self.prev_pose = 0
@@ -100,9 +100,11 @@ class DeepmindLabEnv(gym.Env):
         if isinstance(action, dict): action = action['action']
         reward = self._lab.step(ACTION_LIST[action], num_steps=4)
         self.time_t += 1
-        done = not self._lab.is_running()
-        if self.time_t >= self._max_step :
+        done = (not self._lab.is_running()) or (reward > 0.05)
+        reward = 5.0 if reward > 0.05 else -0.01
+        if self.time_t >= self._max_step - 1:
             done = True
+        #print(self.time_t, self._max_step)
         obs = None if done else self._lab.observations()
         self._last_observation = obs if obs is not None else self._last_observation
         image = self._last_observation[self._colors]
@@ -112,11 +114,12 @@ class DeepmindLabEnv(gym.Env):
         if self.prev_pose is not None:
             progress = np.sqrt(((pose_x - self.prev_pose[0])**2 + (pose_y - self.prev_pose[1])**2))
         else: progress = 0.0
-        if progress < 0.01 : self.stuck_flag += 1
+        if progress < 0.02 :
+            self.stuck_flag += 1
+        else: self.stuck_flag = 0 
         if self.stuck_flag > 20 :
             done = True
             self.stuck_flag = 0.0
-        #print(self.seed, progress, self.stuck_flag)
         self.prev_pose = [pose_x, pose_y]
         self._last_action = action
         obs = {'image': image.transpose(2,1,0), 'pose': np.array([pose_x, pose_y, pose_yaw, self.time_t]), 'prev_action': np.eye(self.action_dim)[self._last_action]}
@@ -173,8 +176,8 @@ ACTION_LIST = [
     _action( 20,   0,  0,  0, 0, 0, 0), # look_right 1
     #_action(  0,  10,  0,  0, 0, 0, 0), # look_up
     #_action(  0, -10,  0,  0, 0, 0, 0), # look_down
-    _action(  0,   0, -1,  0, 0, 0, 0), # strafe_left 2
-    _action(  0,   0,  1,  0, 0, 0, 0), # strafe_right 3
+    #_action(  0,   0, -1,  0, 0, 0, 0), # strafe_left 2
+    #_action(  0,   0,  1,  0, 0, 0, 0), # strafe_right 3
     _action(  0,   0,  0,  1, 0, 0, 0), # forward 4
     _action(  0,   0,  0, -1, 0, 0, 0), # backward 5
     #_action(  0,   0,  0,  0, 1, 0, 0), # fire

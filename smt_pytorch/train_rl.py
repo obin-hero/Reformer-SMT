@@ -69,7 +69,7 @@ def main(cfg):
     visdom_server, visdom_port = cfg.visdom.server, cfg.visdom.port
 
     envs = DeepLabPreprocessVectorEnv(_make_env_fn,
-                                      env_fn_args=[('nav_maze_static_01',
+                                      env_fn_args=[(cfg,'nav_maze_static_01',
                                                     i,
                                                    log_dir,
                                                    visdom_name,
@@ -171,6 +171,7 @@ def main(cfg):
         if epoch > 50:
             training_mode = 'train'
             rollouts.agent_memory_size = cfg.training.max_memory_size
+            print('training mode change!')
         for step in range(cfg.RL.NUM_STEPS):
             obs_unpacked = {k: current_obs.peek()[k].peek() for k in current_obs.peek()}
             if epoch == start_epoch and step < 10:

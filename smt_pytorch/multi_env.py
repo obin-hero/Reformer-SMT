@@ -50,14 +50,14 @@ import os
 
 
 
-def _make_env_fn(scene, rank,
+def _make_env_fn(cfg, scene, rank,
                 log_dir,
                 visdom_name = 'main',
                 visdom_log_file = None,
                 vis_interval = 200,
                 visdom_server = 'localhost',
                 visdom_port = '8097'):
-    env = DeepmindLabEnv(scene)
+    env = DeepmindLabEnv(cfg,scene)
     env.seed(rank)
     env = VisdomMonitor(env,
                         directory=os.path.join(log_dir, visdom_name),
