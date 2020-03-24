@@ -56,7 +56,7 @@ class PPOReplay(object):
         random.shuffle(epochs)
         info = {}
 
-        debug_time = False
+        debug_time = True
         for e_t, e in enumerate(epochs):
             if e == 0:
                 data_generator = rollouts.feed_forward_generator(self.num_mini_batch, on_policy=True, mode=mode)
@@ -65,7 +65,6 @@ class PPOReplay(object):
             start = time.time()
             s_num = 0
             s = time.time()
-            #print(self.num_mini_batch)
             for sample in data_generator:
                 s_num += 1
                 if debug_time:

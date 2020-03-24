@@ -73,7 +73,7 @@ class VizDoomEnv(gym.Env):
     def __init__(self, cfg, **kwargs):
         super(VizDoomEnv,self).__init__(**kwargs)
         self.game = DoomGame()
-        self.game.set_sectors_info_enabled(True)
+        #self.game.set_sectors_info_enabled(True)
         self.game.load_config("configs/my_way_home.cfg")
         self._max_step = cfg.training.max_step
         self.game.set_episode_timeout(self._max_step*5)
@@ -173,7 +173,7 @@ class VizDoomEnv(gym.Env):
         self.game.close()
 
     def render(self, mode='rgb_array', close=False):
-        state = self.game.get_state()
+        state = self._last_observation
         if mode == 'rgb_array':
             obs = self.process_image(state.screen_buffer, resize=False)
             map = state.automap_buffer.transpose(1,2,0)
