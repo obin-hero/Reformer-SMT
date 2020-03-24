@@ -19,13 +19,15 @@ class SensorPack(dict):
     def dim2_att(self, val1, val2, padd=0):
         return SensorPack({k: v[val1:val1+1,val2[0]:val2[1]] for k, v in self.items()})
 
-    def collect_tower(self, val1s, val2s, max_length):
+    def collect_batched_tower(self, val1s, val2s, max_length, batch_size=None):
         sensor_dict = {}
         for k, v in self.items():
             temp_values = []
             for l in range(len(val1s)):
                 va = v[val1s[l]:val1s[l]+1, val2s[l][0]:val2s[l][1]]
-                va = torch.cat((va, torch.zeros(1, max_length - va.shape[1], *va.shape[2:])),1)
+                va = torch.cat((va, torch.zeros([1, max_length - va.shape[1], *va.shape[2:]], dtype=va.dtype)),1)
                 temp_values.append(va)
             sensor_dict[k] = torch.cat(temp_values,0)
+            if batch_size is not None :
+                sensor_dict[k] = torch.split(sensor_dict[k], batch_size)
         return SensorPack(sensor_dict)

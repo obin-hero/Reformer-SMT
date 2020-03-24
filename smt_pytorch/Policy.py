@@ -140,7 +140,7 @@ class RecurrentPolicyWithBase(BasePolicy):
 
     def act(self, observations, states, masks, deterministic=False, mode='train'):
         x, pre_embedding = self.perception_unit.act(observations, masks, mode)
-        x = internal_states = self.gru(x, states * masks)
+        x = internal_states = self.gru(x, states * masks[:,-1:])
         value = self.critic_linear(x)
         dist = self.dist(x)
 
@@ -159,15 +159,18 @@ class RecurrentPolicyWithBase(BasePolicy):
 
         return value, internal_states, action, action_log_probs, pre_embedding
 
-    def get_value(self, observations, states, masks, mode='train'):
-        x = self.perception_unit(observations, masks, mode)
-        x = internal_states = self.gru(x, states * masks)
+    def get_value(self, observations, states, memory_masks=None, mode='train'):
+        x = self.perception_unit(observations, memory_masks, mode)
+        if memory_masks is None:
+            x = self.gru(x, states)
+        else:
+            x = self.gru(x, states * memory_masks[:,-1:])
         value = self.critic_linear(x)
         return value
 
     def evaluate_actions(self, observations, states, masks, action, mode='train'):
         x = self.perception_unit(observations, masks, mode)
-        x = internal_states = self.gru(x, states * masks)
+        x = internal_states = self.gru(x, states * masks[:,-1:])
         value = self.critic_linear(x)
         actor_features = x
         dist = self.dist(actor_features)

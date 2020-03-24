@@ -102,7 +102,7 @@ class SceneMemory(object):
         for i in range(max_length):
             embedded_memory.append(self.embed_network.final_embed(memory_buffer[:,i]))
         embedded_memory = torch.stack(embedded_memory,1)
-        return embedded_memory, embedded_memory[:,0:1], self.memory_buffer[:,0]
+        return embedded_memory, embedded_memory[:,0:1], self.memory_buffer[:,0], self.memory_mask[:,:max_length]
 
     def get_length(self):
         return self.memory_mask.sum(dim=1)
@@ -152,7 +152,7 @@ class SceneMemory(object):
         relative_poses = torch.stack([rel_x, rel_y, torch.cos(rel_yaw), torch.sin(rel_yaw), exp_t],2)
         return relative_poses
 
-    def embedd_observations(self, images, poses, prev_actions, done):
+    def embedd_observations(self, images, poses, prev_actions, memory_masks=None):
         # B * L * 3 * H * W : L will be 1
         images, poses, prev_actions = images.squeeze(1), poses.squeeze(1), prev_actions.squeeze(1)
         embedded_memory = []
@@ -164,10 +164,12 @@ class SceneMemory(object):
                       self.embed_network.embed_pose(relative_pose)]
         embeddings = torch.cat(embeddings, -1)
         embedded_memory.append(self.embed_network.final_embed(embeddings))
-        embedded_memory = torch.stack(embedded_memory, 1)
-        return embedded_memory, embedded_memory[:,0:1]
+        if memory_masks is None:
+            embedded_memory = torch.stack(embedded_memory, 1)
+        else: embedded_memory = torch.stack(embedded_memory, 1) * memory_masks.view(-1,1,1)
+        return embedded_memory, embedded_memory[:,0:1], memory_masks
 
-    def embedd_with_pre_embeds(self, pre_embeddings, poses, done):
+    def embedd_with_pre_embeds(self, pre_embeddings, poses, memory_masks=None):
         L = pre_embeddings.shape[1]
         embedded_memory = []
         relative_pose = self.get_relative_poses(poses[:, 0], poses)
@@ -175,5 +177,8 @@ class SceneMemory(object):
             embeddings = [pre_embeddings[:,l:l+1], self.embed_network.embed_pose(relative_pose[:,l:l+1])]
             embeddings = torch.cat(embeddings, -1)
             embedded_memory.append(self.embed_network.final_embed(embeddings))
-        embedded_memory = torch.stack(embedded_memory, 1)
+        if memory_masks is None:
+            embedded_memory = torch.stack(embedded_memory, 1)
+        else:
+            embedded_memory = torch.stack(embedded_memory, 1) * memory_masks.view(-1,L,1,1)
         return embedded_memory, embedded_memory[:,0:1]

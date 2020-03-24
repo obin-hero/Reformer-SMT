@@ -44,6 +44,7 @@ class RolloutSensorDictReplayBuffer(object):
         self.masks = torch.ones(max_episode_size, max_episode_step_size, 1, requires_grad=False)
         self.pre_embedding_size = 64 + 16 * ('prev_action' in cfg.network.inputs)
         self.pre_embeddings = torch.zeros(max_episode_size, max_episode_step_size, self.pre_embedding_size, requires_grad=False)
+        #self.for_debug = torch.zeros(max_episode_size, max_episode_step_size, 1)
 
         self.actor_critic = actor_critic
         self.use_gae = use_gae
@@ -100,6 +101,7 @@ class RolloutSensorDictReplayBuffer(object):
             inputs.extend([state[p_num], action[p_num], action_log_prob[p_num], value_pred[p_num], reward[p_num], mask[p_num]])
             self.curr_episodes[ep_id] = True
             self.curr_steps[ep_id] = step
+            #self.for_debug[ep_id, step] = step
 
             if mode == 'train':
                 poses, pred_embedding = current_obs
@@ -131,8 +133,8 @@ class RolloutSensorDictReplayBuffer(object):
 
     def feed_forward_generator(self, num_mini_batch, on_policy=True, mode='train'):
 
-        print('start feed forward generator')
-        s = time.time()
+        #print('start feed forward generator')
+        #s = time.time()
 
         mini_batch_size = self.num_steps // num_mini_batch
 
@@ -176,33 +178,34 @@ class RolloutSensorDictReplayBuffer(object):
         action_log_probs_sample = torch.zeros(self.num_steps, 1).cuda()
         actions_sample = torch.zeros(self.num_steps, 1).cuda()
         masks_sample = torch.ones(self.num_steps + 1, 1).cuda()
+        memory_masks_sample = torch.zeros(self.num_steps+1, self.agent_memory_size).cuda()
+        #debug_sample = torch.zeros(self.num_steps, self.agent_memory_size, 1).cuda()
 
         # Fill the buffers and get values
         sample_idx = 0
         #print(len(step_indices))
 
         # get memory for all sampled steps
-        print('random sample steps ', time.time() - s)
+        #print('random sample steps ', time.time() - s)
         memory_eps = []
-        memory_inds = []
+        memory_steps = []
         s = time.time()
         for step_info in step_indices[:-1]:
             sample_ep, sample_step = step_info
             memory_start = max(sample_step + 1 - self.agent_memory_size, 0)
             memory_size = sample_step - memory_start
+            #print('ep {} step {} memory_size {}'.format(sample_ep, sample_step, memory_size+1))
             if mode == 'pretrain':
                 for k in self.observations:
                     observations_sample[k][sample_idx] = self.observations[k][sample_ep, sample_step].cuda()
-                memory_eps =
-                memory = self.observations.dim2_att(sample_ep, [memory_start, sample_step + 1])
-                memory = {k: torch.cat((v, torch.zeros(1, self.agent_memory_size - v.shape[1])),1).to(v.device) for k,v in memory.items()}
-                memory_sample.append(memory)
+                memory_eps.append(sample_ep)
+                memory_steps.append([memory_start, sample_step+1])
             else:
-                embeddings_sample[sample_idx, :memory_size + 1] = self.pre_embeddings[sample_ep, memory_start:sample_step + 1]
-                poses_sample[sample_idx, :memory_size + 1] = self.poses[sample_ep, memory_start:sample_step + 1]
-
-
-
+                embeddings_sample[sample_idx, :memory_size + 1] = self.pre_embeddings[sample_ep, memory_start:sample_step + 1].cuda()
+                poses_sample[sample_idx, :memory_size + 1] = self.poses[sample_ep, memory_start:sample_step + 1].cuda()
+            #debug_sample[sample_idx, :memory_size+1] = self.for_debug[sample_ep, memory_start:sample_step+1].cuda()
+            #print(debug_sample[sample_idx].squeeze().int().tolist())
+            memory_masks_sample[sample_idx, :memory_size] = 1.0
             states_sample[sample_idx] = self.states[sample_ep, sample_step].cuda()
             rewards_sample[sample_idx] = self.rewards[sample_ep, sample_step].cuda()
             action_log_probs_sample[sample_idx] = self.action_log_probs[sample_ep, sample_step].cuda()
@@ -211,65 +214,51 @@ class RolloutSensorDictReplayBuffer(object):
             sample_idx += 1
 
 
-        batch_size = 4
+        batch_size = 64
         if mode == 'pretrain':
-            for k in memory_
-            memory_sample = [torch.cat(memory_sample,0).cuda()
-            batch_memory_sample = torch.split(memory_sample, batch_size)
-
-
-
-
-
-
-            num_of_batch = len(batch_memory_sample)
+            memory_sample_dict = self.observations.collect_batched_tower(memory_eps, memory_steps, self.agent_memory_size, batch_size)
+            num_of_batch = len(memory_sample_dict[list(memory_sample_dict.keys())[0]])
+            batch_memory_sample = [{k: v[i].cuda() for k, v in memory_sample_dict.items()} for i in range(num_of_batch)]
         else:
-            batch_embedding = torch.split(embeddings_sample, batch_size)
-            batch_poses = torch.split(poses_sample,batch_size)
+            batch_embedding = torch.split(embeddings_sample[:sample_idx], batch_size)
+            batch_poses = torch.split(poses_sample[:sample_idx],batch_size)
             num_of_batch = len(batch_embedding)
             batch_memory_sample = [(batch_embedding[i], batch_poses[i]) for i in range(num_of_batch)]
 
-        batch_memory_states = torch.split(states_sample, batch_size)
-        batch_memory_masks = torch.split(masks_sample, batch_size)
+        batch_memory_states = torch.split(states_sample[:sample_idx], batch_size)
+        batch_memory_masks = torch.split(memory_masks_sample[:sample_idx], batch_size)
 
 
         batch_values_sample = []
         for n in range(num_of_batch):
             with torch.no_grad():
                 batch_value = self.actor_critic.get_value(batch_memory_sample[n],
-                                                          batch_memory_states[n],
-                                                          batch_memory_masks[n],
+                                                          batch_memory_states[n].cuda(),
+                                                          batch_memory_masks[n].cuda(),
                                                           mode)
                 batch_values_sample.append(batch_value)
 
 
-        values_sample = torch.cat(batch_values_sample,0)
+        values_sample[:sample_idx] = torch.cat(batch_values_sample,0)
 
-            with torch.no_grad():
-                embed_obs = (self.pre_embeddings[sample_ep, memory_start:sample_step+1].unsqueeze(0).cuda(),
-                             self.poses[sample_ep, memory_start:sample_step+1].unsqueeze(0).cuda())
-                values_sample[sample_idx] = self.actor_critic.get_value(embed_obs,
-                                                                        self.states[sample_ep, sample_step].cuda().unsqueeze(0),
-                                                                        self.masks[sample_ep, sample_step].cuda().unsqueeze(0), mode)
-
-
-        print('collect the sample', time.time() - s)
+        #print('------------------------collect the sample', time.time() - s)
         s = time.time()
         # we need to compute returns and advantages on the fly, since we now have updated value function
         with torch.no_grad():
             sample_ep, sample_step = step_indices[-1]
             memory_start = max(sample_step + 1 - self.agent_memory_size, 0)
+            memory_size = sample_step - memory_start
+            memory_masks_sample[sample_idx, :memory_size] = 1.0
             if mode == 'pretrain':
                 next_value = self.actor_critic.get_value(
                     self.observations.dim2_att(sample_ep, [memory_start, sample_step+1]).apply(lambda k, v: v.cuda()),
                     self.states[sample_ep, sample_step].cuda().unsqueeze(0),
-                    self.masks[sample_ep, sample_step].cuda().unsqueeze(0),mode)
+                    mode=mode)
             else :
                 embed_obs = (self.pre_embeddings[sample_ep, memory_start:sample_step + 1].unsqueeze(0).cuda(),
                              self.poses[sample_ep, memory_start:sample_step + 1].unsqueeze(0).cuda())
                 next_value = self.actor_critic.get_value(embed_obs,
-                                                         self.states[sample_ep, sample_step].cuda().unsqueeze(0),
-                                                         self.masks[sample_ep, sample_step].cuda(), mode)
+                                                         self.states[sample_ep, sample_step].cuda().unsqueeze(0), mode=mode)
 
 
         if self.use_gae:
@@ -281,8 +270,8 @@ class RolloutSensorDictReplayBuffer(object):
                 gae = delta + self.gamma * self.tau * masks_sample[step + 1] * gae
                 returns_sample[step] = gae + values_sample[step]
 
-        print('calculate gae', time.time() - s)
-        s = time.time()
+        #print('calculate gae', time.time() - s)
+        #s = time.time()
 
         observations_batch = {}
         sampler = BatchSampler(SubsetRandomSampler(range(self.num_steps)), mini_batch_size, drop_last=False)
@@ -300,9 +289,10 @@ class RolloutSensorDictReplayBuffer(object):
             actions_batch = actions_sample[indices]
             return_batch = returns_sample[indices]
             masks_batch = masks_sample[indices]
+            memory_masks_batch = memory_masks_sample[indices]
             old_action_log_probs_batch = action_log_probs_sample[indices]
             adv_targ = advantages[indices]
-            yield observations_batch, states_batch, actions_batch, return_batch, masks_batch, old_action_log_probs_batch, adv_targ
+            yield observations_batch, states_batch, actions_batch, return_batch, memory_masks_batch, old_action_log_probs_batch, adv_targ
 
 
 

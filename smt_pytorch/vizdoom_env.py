@@ -10,6 +10,7 @@ from gym import ObservationWrapper
 import vizdoom
 from vizdoom import *
 from collections import deque
+from shapely.geometry import Point, Polygon
 
 class LazyFrames(object):
     def __init__(self, frames):
@@ -73,7 +74,7 @@ class VizDoomEnv(gym.Env):
     def __init__(self, cfg, **kwargs):
         super(VizDoomEnv,self).__init__(**kwargs)
         self.game = DoomGame()
-        #self.game.set_sectors_info_enabled(True)
+        self.game.set_sectors_info_enabled(True)
         self.game.load_config("configs/my_way_home.cfg")
         self._max_step = cfg.training.max_step
         self.game.set_episode_timeout(self._max_step*5)
@@ -97,13 +98,24 @@ class VizDoomEnv(gym.Env):
         self.observation_space = OrderedDict({'image': gym.spaces.Box(0, 255, (4, 64, 64), dtype = np.uint8),
                                               'pose': gym.spaces.Box(-np.Inf, np.Inf, (4,), dtype=np.float32),
                                               'prev_action': gym.spaces.Box(0, 1, (self.action_dim,), dtype=np.float32)})
-
         self._last_observation = None
         self._last_action = None
         self.time_t = -1
         self.episode_id = -1
         self.prev_pose = 0
         self.stuck_flag = 0
+        self.sectors = None
+
+    def new_room(self,state):
+        if state is None : return 0.0
+        sectors = state.sectors
+        agent_point = Point(state.game_variables[0], state.game_variables[1])
+        for s_id in range(len(sectors)):
+            if self.sectors[s_id] == 1.0: continue
+            if agent_point.within(self.sectors_polygon[s_id]):
+                self.sectors[s_id] = 1.0
+                return 0.1
+        return 0.0
 
     def step(self, action):
         if isinstance(action, dict): action = action['action']
@@ -122,6 +134,7 @@ class VizDoomEnv(gym.Env):
         pose_x, pose_y = agent_pose[0]/400, agent_pose[1]/400
         pose_yaw = agent_pose[-1]/360
         #print(agent_pose, self.stuck_flag, self.time_t,self.game.is_episode_finished())
+        reward += self.new_room(state)
         if self.prev_pose is not None:
             progress = np.sqrt(((pose_x - self.prev_pose[0])**2 + (pose_y - self.prev_pose[1])**2))
         else: progress = 0.0
@@ -163,7 +176,20 @@ class VizDoomEnv(gym.Env):
         self.episode_id += 1
         self.prev_pose = None
         self.stuck_flag = 0
+        self.sectors = np.zeros(len(state.sectors))
+        self.sectors_polygon = self.build_polygon(state.sectors)
         return obs
+
+    def build_polygon(self, sectors):
+        sectors_polygon = []
+        for s in sectors:
+            coords = []
+            for line in s.lines:
+                coords.append((line.x1, line.y1))
+                coords.append((line.x2, line.y2))
+            poly = Polygon(coords)
+            sectors_polygon.append(poly)
+        return sectors_polygon
 
     def seed(self, seed = None):
         self.seed = seed
@@ -177,18 +203,23 @@ class VizDoomEnv(gym.Env):
         if mode == 'rgb_array':
             obs = self.process_image(state.screen_buffer, resize=False)
             map = state.automap_buffer.transpose(1,2,0)
-            view_img = np.concatenate([obs[:,:,:3],map],1)
+            view_img = np.concatenate([obs[:,:,:3],map],1).astype(np.uint8)
+            view_img = np.ascontiguousarray(view_img)
+            discovered = str(np.where(self.sectors)[0].tolist())
+            cv2.putText(view_img, discovered, (400, 170), cv2.FONT_HERSHEY_PLAIN, 0.5, (255, 255, 255), 1)
             #view_img = cv2.resize(view_img, dsize=None, fx=2.0, fy=2.0)
             return view_img
         elif mode == 'human':
             obs = self.process_image(state.screen_buffer, resize=False)
             map = state.automap_buffer.transpose(1,2,0)
             view_img = np.concatenate([obs[:,:,:3],map],1)
-            #view_img = cv2.resize(view_img, dsize=None, fx=2.0, fy=2.0)
+            view_img = np.ascontiguousarray(view_img)
+            discovered = str(np.where(self.sectors)[0].tolist())
+            cv2.putText(view_img, discovered, (400, 170), cv2.FONT_HERSHEY_PLAIN, 0.5, (255, 255, 255), 1)
             return view_img
             #cv2.imshow('render', view_img[:,:,[2,1,0]])
             #cv2.waitKey(0)
-           #pop up a window and render
+            #pop up a window and render
         else:
             super(VizDoomEnv, self).render(mode=mode) # just raise an exception
 
