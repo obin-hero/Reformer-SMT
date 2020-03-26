@@ -168,8 +168,7 @@ def main(cfg):
     num_updates = int(cfg.RL.NUM_FRAMES) // cfg.RL.NUM_STEPS * num_train_processes
     abs_time = 0
     start_epoch = 0
-    training_mode = 'pretrain'
-    rollouts.agent_memory_size = 1
+    training_mode = 'train'
     if cfg.training.pretrain_load == 'none':
         training_mode = 'pretrain'
         rollouts.agent_memory_size = 1

@@ -61,7 +61,8 @@ class RolloutSensorDictReplayBuffer(object):
 
     def reset_episode(self, ep):
         for k in self.observations:
-            self.observations[k][ep] *= 0.0
+            try: self.observations[k][ep] *= 0.0
+            except: self.observations[k][ep] *= 0
         self.poses[ep] *= 0.0
         self.rewards[ep] *= 0.0
         self.value_preds[ep] *= 0.0
@@ -207,8 +208,8 @@ class RolloutSensorDictReplayBuffer(object):
                 memory_eps.append(sample_ep)
                 memory_steps.append([memory_start, sample_step+1])
             else:
-                embeddings_sample[sample_idx, :memory_size + 1] = self.pre_embeddings[sample_ep, memory_start:sample_step + 1].cuda()
-                poses_sample[sample_idx, :memory_size + 1] = self.poses[sample_ep, memory_start:sample_step + 1].cuda()
+                embeddings_sample[sample_idx, :memory_size] = self.pre_embeddings[sample_ep, memory_start:sample_step + 1].cuda()
+                poses_sample[sample_idx, :memory_size] = self.poses[sample_ep, memory_start:sample_step + 1].cuda()
             #debug_sample[sample_idx, :memory_size+1] = self.for_debug[sample_ep, memory_start:sample_step+1].cuda()
             #print(debug_sample[sample_idx].squeeze().int().tolist())
             memory_masks_sample[sample_idx, :memory_size] = 1.

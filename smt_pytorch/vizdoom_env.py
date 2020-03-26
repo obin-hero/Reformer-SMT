@@ -151,7 +151,7 @@ class VizDoomEnv(gym.Env):
             self.stuck_flag = 0.0
         self.prev_pose = [pose_x, pose_y]
         self._last_action = action
-        obs = {'image': image.transpose(2,1,0), 'pose': np.array([pose_x, pose_y, pose_yaw, self.time_t]), 'prev_action': np.eye(self.action_dim)[self._last_action]}
+        obs = {'image': image.transpose(2,1,0), 'pose': np.array([pose_x, pose_y, pose_yaw, self.time_t+1]), 'prev_action': np.eye(self.action_dim)[self._last_action]}
         return obs, reward, done, {'episode_id': self.episode_id, 'step_id':self.time_t}
 
     def process_image(self, image, resize=True, ch3=False):
@@ -173,10 +173,10 @@ class VizDoomEnv(gym.Env):
         self.time_t = -1
         image = np.concatenate([self.process_image(state.screen_buffer), self.process_image(state.depth_buffer)],2)
         agent_pose = state.game_variables
-        pose_x, pose_y = agent_pose[0], agent_pose[1]
-        pose_yaw = agent_pose[-1]
+        pose_x, pose_y = agent_pose[0]/400, agent_pose[1]/400
+        pose_yaw = agent_pose[-1]/360
         self._last_action = None
-        obs = {'image': image.transpose(2,1,0), 'pose': np.array([pose_x, pose_y, pose_yaw, self.time_t]), 'prev_action': np.zeros(self.action_dim)}
+        obs = {'image': image.transpose(2,1,0), 'pose': np.array([pose_x, pose_y, pose_yaw, self.time_t + 1]), 'prev_action': np.zeros(self.action_dim)}
         self.episode_id += 1
         self.prev_pose = None
         self.stuck_flag = 0

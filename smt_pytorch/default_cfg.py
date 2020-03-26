@@ -23,8 +23,8 @@ C.training.num_envs = 6
 C.training.gpu = [0]
 C.training.lr = 1e-4
 C.training.resume = 'none'
-C.training.pretrain_load = 'none'
-C.training.pretrain_epoch = 10000
+C.training.pretrain_load = 'pretrain_ep001001.pth'
+C.training.pretrain_epoch = 1000
 
 C.attention = CfgNode()
 C.attention.n_head = 8
