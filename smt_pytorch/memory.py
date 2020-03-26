@@ -50,9 +50,10 @@ class Embedding(nn.Module):
         self.final_embed = nn.Linear(final_ch, 128).cuda()
 
 import time
-class SceneMemory(object):
+class SceneMemory(nn.Module):
     # B * M (max_memory_size) * E (embedding)
     def __init__(self, cfg) -> None:
+        super(SceneMemory, self).__init__()
         self.B = cfg.training.num_envs
         self.max_memory_size = cfg.training.max_memory_size
         self.embedding_size = cfg.training.embedding_size

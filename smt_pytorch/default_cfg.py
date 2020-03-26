@@ -3,7 +3,7 @@ from yacs.config import CfgNode
 
 C = CfgNode()
 C.seed = 0
-C.action_dim = 3
+C.action_dim = 5
 C.pose_dim = 5
 C.is_train = True
 
@@ -12,7 +12,7 @@ C.saving.version = 'base'
 C.saving.save_dir = '.'
 C.saving.log_interval = 10
 C.saving.vis_interval = 200
-C.saving.save_interval = 1000
+C.saving.save_interval = 500
 
 C.training = CfgNode()
 C.training.batch_size = 64
@@ -22,6 +22,9 @@ C.training.max_step = 500
 C.training.num_envs = 6
 C.training.gpu = [0]
 C.training.lr = 1e-4
+C.training.resume = 'none'
+C.training.pretrain_load = 'none'#pretrain_ep001000.path'
+C.training.pretrain_epoch = 1000
 
 C.attention = CfgNode()
 C.attention.n_head = 8

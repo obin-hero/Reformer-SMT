@@ -7,14 +7,7 @@ devices = ",".join(str(e) for e in cfg.training.gpu)
 os.environ["CUDA_VISIBLE_DEVICES"] = devices
 import torch
 torch.backends.cudnn.benchmark=True
-
-torch.manual_seed(cfg.seed)
-torch.cuda.manual_seed(cfg.seed)
-print("current cpu random seed", torch.initial_seed())
-print("current gpu random seed", torch.cuda.initial_seed())
-
 import numpy as np
-np.random.seed(cfg.seed)
 import time
 from gym import logger
 from ob_utils import mkdir
@@ -96,6 +89,16 @@ def main(cfg):
     actor_critic.cuda()
     actor_critic.train()
 
+
+    if cfg.training.resume != 'none':
+        state_dict = torch.load(os.path.join(save_dir, cfg.training.resume))
+        actor_critic.load_state_dict(state_dict)
+        print('loaded {}'.format(cfg.training.resume))
+    if cfg.training.pretrain_load != 'none':
+        state_dict = torch.load(os.path.join(save_dir, cfg.training.pretrain_load))
+        actor_critic.preception_unit.Memory.embed_network.load_state_dict(state_dict)
+        print('loaded {}'.format(cfg.training.pretrain_load))
+
     uuid = cfg.saving.version
     mlog = tnt.logger.TensorboardMeterLogger(env=uuid,
                                             log_dir=log_dir,
@@ -168,9 +171,14 @@ def main(cfg):
     training_mode = 'pretrain'
     rollouts.agent_memory_size = 1
     for epoch in range(start_epoch, num_updates, 1):
-        if epoch > 50:
+        if epoch > cfg.training.pretrain_epoch and training_mode == 'pretrain':
             training_mode = 'train'
             rollouts.agent_memory_size = cfg.training.max_memory_size
+            #actor_critic.perception_unit.Memory.freeze_embedding_network()
+            agent.change_optimizer()
+            print('changed training mode')
+            save_network(actor_critic.perception_unit.Memory.embed_network, os.path.join(save_dir, 'pretrain_ep%06d.pth'%(epoch)))
+
         for step in range(cfg.RL.NUM_STEPS):
             obs_unpacked = {k: current_obs.peek()[k].peek() for k in current_obs.peek()}
             if epoch == start_epoch and step < 10:
@@ -245,10 +253,11 @@ def main(cfg):
         if (epoch) % cfg.saving.log_interval == 0 :
             n_steps_since_logging = cfg.saving.log_interval * num_train_processes * cfg.RL.NUM_STEPS
             total_num_steps = (epoch + 1) * num_train_processes * cfg.RL.NUM_STEPS
-            print("Update {}, num timesteps {}, FPS {}".format(
+            print("Update {}, num timesteps {}, FPS {} - time {}".format(
                 epoch + 1,
                 total_num_steps,
-                int(n_steps_since_logging / (time.time() - start_time))
+                int(n_steps_since_logging / (time.time() - start_time)),
+                time.time() - start_time
             ))
             for metric in core_metrics:  # Log to stdout
                 for mode in ['train', 'val']:

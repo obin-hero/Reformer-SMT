@@ -75,6 +75,7 @@ class VizDoomEnv(gym.Env):
         super(VizDoomEnv,self).__init__(**kwargs)
         self.game = DoomGame()
         self.game.set_sectors_info_enabled(True)
+
         self.game.load_config("configs/my_way_home.cfg")
         self._max_step = cfg.training.max_step
         self.game.set_episode_timeout(self._max_step*5)
@@ -92,7 +93,7 @@ class VizDoomEnv(gym.Env):
             "+am_backcolor 000000")  # Map's colors can be changed using CVARs, full list is available here: https://zdoom.org/wiki/CVARs:Automap#am_backcolor
         self.game.init()
 
-        self.ACTION_LIST = np.eye(3).astype(np.bool)
+        self.ACTION_LIST = np.eye(5).astype(np.bool)
         self.action_space = gym.spaces.Discrete(len(self.ACTION_LIST))
         self.action_dim = self.action_space.n
         self.observation_space = OrderedDict({'image': gym.spaces.Box(0, 255, (4, 64, 64), dtype = np.uint8),
@@ -123,7 +124,7 @@ class VizDoomEnv(gym.Env):
         self.time_t += 1
         done = (self.game.is_episode_finished())
         #print(reward)
-        reward = 5.0 if reward > 0.05 else -0.01
+        reward = 3.0 if reward > 0.05 else -0.001
         if self.time_t >= self._max_step - 1: done = True
         state = self.game.get_state()
         obs = None if done else state

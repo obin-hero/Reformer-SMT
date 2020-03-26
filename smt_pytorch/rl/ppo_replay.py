@@ -37,14 +37,38 @@ class PPOReplay(object):
 
         self.max_grad_norm = max_grad_norm
 
-        self.optimizer = optim.Adam(actor_critic.parameters(),
+        all_parameters = [p for p in actor_critic.parameters()]
+        all_parameters.extend([p for p in actor_critic.perception_unit.Memory.embed_network.parameters()])
+        self.lr = lr
+        self.eps = eps
+        self.weight_decay = weight_decay
+        self.amsgrad = amsgrad
+        self.optimizer = optim.Adam(all_parameters,
                                     lr=lr,
                                     eps=eps,
                                     weight_decay=weight_decay,
                                     amsgrad=amsgrad)
+
+        #self.optimizer = optim.Adam([p for n, p in actor_critic.named_parameters() if 'Embedding' not in n]
         self.last_grad_norm = None
         self.intrinsic_losses = intrinsic_losses if intrinsic_losses is not None else []
 
+    def change_optimizer(self,mode='train'):
+        if mode == 'train':
+            self.optimizer = optim.Adam(self.actor_critic.parameters(),
+                                        lr=self.lr,
+                                        eps=self.eps,
+                                        weight_decay=self.weight_decay,
+                                        amsgrad=self.amsgrad)
+        elif mode == 'pretrain':
+            all_parameters = [p for p in actor_critic.parameters()]
+            all_parameters.extend([p for p in actor_critic.perception_unit.Memory.embed_network.named_parameters()])
+            self.optimizer = optim.Adam(all_parameters,
+                                        lr=lr,
+                                        eps=eps,
+                                        weight_decay=weight_decay,
+                                        amsgrad=amsgrad)    
+            
     def update(self, rollouts, mode='train'):
         value_loss_epoch = 0
         action_loss_epoch = 0
