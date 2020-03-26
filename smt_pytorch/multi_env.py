@@ -44,7 +44,8 @@ EPISODE_COMMAND = "current_episode"
 
 from time import time
 
-from deeplab_env import DeepmindLabEnv
+try: from deeplab_env import DeepmindLabEnv
+except: print('cant use deepmindlab')
 from vizdoom_env import VizDoomEnv
 from rl.visdommonitor import VisdomMonitor
 import os
@@ -203,7 +204,7 @@ class VectorEnv:
             while command != CLOSE_COMMAND:
                 if command == STEP_COMMAND:
                     # different step methods for habitat.RLEnv and habitat.Env
-                    if isinstance(env, DeepmindLabEnv) or isinstance(
+                    if isinstance(
                         env, gym.Env
                     ):
                         # habitat.RLEnv
