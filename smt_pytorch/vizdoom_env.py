@@ -106,6 +106,7 @@ class VizDoomEnv(gym.Env):
         self.prev_pose = 0
         self.stuck_flag = 0
         self.sectors = None
+        self.total_reward = 0.0
 
     def new_room(self,state):
         if state is None : return 0.0
@@ -123,8 +124,8 @@ class VizDoomEnv(gym.Env):
         reward = self.game.make_action(self.ACTION_LIST[action].tolist(),5)
         self.time_t += 1
         done = (self.game.is_episode_finished())
-        #print(reward)
-        reward = 3.0 if reward > 0.05 else -0.001
+        #print(reward
+        reward = 3.0 if reward > 0.05 else 0.0
         if self.time_t >= self._max_step - 1: done = True
         state = self.game.get_state()
         obs = None if done else state
@@ -136,6 +137,7 @@ class VizDoomEnv(gym.Env):
         pose_yaw = agent_pose[-1]/360
         #print(agent_pose, self.stuck_flag, self.time_t,self.game.is_episode_finished())
         reward += self.new_room(state)
+        self.total_reward += reward
         if self.prev_pose is not None:
             progress = np.sqrt(((pose_x - self.prev_pose[0])**2 + (pose_y - self.prev_pose[1])**2))
         else: progress = 0.0
@@ -179,6 +181,7 @@ class VizDoomEnv(gym.Env):
         self.stuck_flag = 0
         self.sectors = np.zeros(len(state.sectors))
         self.sectors_polygon = self.build_polygon(state.sectors)
+        self.total_reward = 0.0
         return obs
 
     def build_polygon(self, sectors):
@@ -207,6 +210,7 @@ class VizDoomEnv(gym.Env):
             view_img = np.concatenate([obs[:,:,:3],map],1).astype(np.uint8)
             view_img = np.ascontiguousarray(view_img)
             discovered = str(np.where(self.sectors)[0].tolist())
+            cv2.putText(view_img, 'reward: %.3f'%(self.total_reward), (400, 150), cv2.FONT_HERSHEY_PLAIN, 0.5, (255, 255, 255), 1)
             cv2.putText(view_img, discovered, (400, 170), cv2.FONT_HERSHEY_PLAIN, 0.5, (255, 255, 255), 1)
             #view_img = cv2.resize(view_img, dsize=None, fx=2.0, fy=2.0)
             return view_img
@@ -215,6 +219,7 @@ class VizDoomEnv(gym.Env):
             map = state.automap_buffer.transpose(1,2,0)
             view_img = np.concatenate([obs[:,:,:3],map],1)
             view_img = np.ascontiguousarray(view_img)
+            cv2.putText(view_img, 'reward: %.3f'%(self.total_reward), (400, 150), cv2.FONT_HERSHEY_PLAIN, 0.5, (255, 255, 255), 1)
             discovered = str(np.where(self.sectors)[0].tolist())
             cv2.putText(view_img, discovered, (400, 170), cv2.FONT_HERSHEY_PLAIN, 0.5, (255, 255, 255), 1)
             return view_img

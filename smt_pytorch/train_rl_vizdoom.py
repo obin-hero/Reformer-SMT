@@ -96,7 +96,7 @@ def main(cfg):
         print('loaded {}'.format(cfg.training.resume))
     if cfg.training.pretrain_load != 'none':
         state_dict = torch.load(os.path.join(save_dir, cfg.training.pretrain_load))
-        actor_critic.preception_unit.Memory.embed_network.load_state_dict(state_dict)
+        actor_critic.perception_unit.Memory.embed_network.load_state_dict(state_dict)
         print('loaded {}'.format(cfg.training.pretrain_load))
 
     uuid = cfg.saving.version
@@ -168,8 +168,14 @@ def main(cfg):
     num_updates = int(cfg.RL.NUM_FRAMES) // cfg.RL.NUM_STEPS * num_train_processes
     abs_time = 0
     start_epoch = 0
-    training_mode = 'pretrain'
-    rollouts.agent_memory_size = 1
+    training_mode = 'train'
+    if cfg.training.pretrain_load == 'none':
+        training_mode = 'pretrain'
+        rollouts.agent_memory_size = 1
+    else:
+        agent.change_optimizer()
+
+    print('start train with training mode ',training_mode)
     for epoch in range(start_epoch, num_updates, 1):
         if epoch > cfg.training.pretrain_epoch and training_mode == 'pretrain':
             training_mode = 'train'
