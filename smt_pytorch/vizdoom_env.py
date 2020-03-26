@@ -144,7 +144,8 @@ class VizDoomEnv(gym.Env):
         #print(pose_x, pose_y, pose_yaw, progress)
         if progress < 0.02 :
             self.stuck_flag += 1
-        else: self.stuck_flag = 0 
+        else: 
+            self.stuck_flag = 0 
         if self.stuck_flag > 20 :
             done = True
             self.stuck_flag = 0.0

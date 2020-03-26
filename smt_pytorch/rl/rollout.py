@@ -90,14 +90,16 @@ class RolloutSensorDictReplayBuffer(object):
         for p_num in range(self.num_processes):
             ep_id, step = (episodes[p_num]*self.num_processes + p_num)%self.max_episode_size, steps[p_num]
             next_step = (step + 1)%self.max_episode_step_size
-            if self.curr_episodes[ep_id] and step == 0: self.reset_episode(ep_id)
+            ep_id_ = (episodes[p_num]+1)*self.num_processes + p_num if mask[p_num] == 0 else ep_id
+            if self.curr_episodes[ep_id_] and next_step == 0: self.reset_episode(ep_id_)
+            #if self.curr_episodes[ep_id] and step == 0: self.reset_episode(ep_id)
             #print(ep_id, step, self.actions.shape)
-            modules.extend([self.states[ep_id, next_step].copy_,
+            modules.extend([self.states[ep_id_, next_step].copy_,
                            self.actions[ep_id, step].copy_,
                            self.action_log_probs[ep_id, step].copy_,
                            self.value_preds[ep_id, step].copy_,
                            self.rewards[ep_id, step].copy_,
-                           self.masks[ep_id, next_step].copy_])
+                           self.masks[ep_id_, next_step].copy_])
             inputs.extend([state[p_num], action[p_num], action_log_prob[p_num], value_pred[p_num], reward[p_num], mask[p_num]])
             self.curr_episodes[ep_id] = True
             self.curr_steps[ep_id] = step
@@ -105,14 +107,16 @@ class RolloutSensorDictReplayBuffer(object):
 
             if mode == 'train':
                 poses, pred_embedding = current_obs
-                modules.extend([self.poses[ep_id, next_step].copy_, self.pre_embeddings[ep_id, next_step].copy_])
+                modules.extend([self.poses[ep_id_, next_step].copy_, self.pre_embeddings[ep_id_, next_step].copy_])
                 inputs.extend([poses[p_num], pred_embedding[p_num]])
 
         nn.parallel.parallel_apply(modules, inputs)
         if mode == 'pretrain':
             for p_num in range(self.num_processes):
                 ep_id, step = (episodes[p_num]*self.num_processes + p_num)%self.max_episode_size, steps[p_num]
-                modules = ([self.observations[k][ep_id, next_step].copy_ for k in self.observations])
+                next_step = (step + 1) % self.max_episode_step_size
+                ep_id_ = (episodes[p_num] + 1) * self.num_processes + p_num if mask[p_num] == 0 else ep_id
+                modules = ([self.observations[k][ep_id_, next_step].copy_ for k in self.observations])
                 inputs = tuple([(current_obs[k].peek()[p_num],) for k in self.observations])
                 nn.parallel.parallel_apply(modules, inputs)
         self.curr_envs_episodes = np.maximum(np.array(episodes), self.curr_envs_episodes)
@@ -150,28 +154,30 @@ class RolloutSensorDictReplayBuffer(object):
         else:
             saved_ep_inds = torch.where(self.curr_episodes)[0]
             episode_id = np.random.choice(saved_ep_inds)
-            step_id = np.random.randint(0, self.curr_steps[episode_id]) if self.curr_steps[episode_id] > 0 else 0
+            step_id = np.random.randint(1, self.curr_steps[episode_id]) if self.curr_steps[episode_id] > 1 else 1
 
-        if step_id >= self.num_steps:
+        if step_id > self.num_steps:
             start_idx = (step_id - self.num_steps)
             step_indices = [[episode_id, start_idx + i] for i in range(self.num_steps)]
         else:
             step_indices = [[episode_id, i] for i in range(step_id)]
-            ep = (episode_id - 1)%self.max_episode_size
+            saved_ep_inds = torch.where(self.curr_episodes)[0]
+            ep_index = saved_ep_inds[saved_ep_inds.tolist().index(episode_id)]
+            ep_index = (ep_index - 1)%len(saved_ep_inds)
             while True:
                 if len(step_indices) >= self.num_steps:
                     step_indices = step_indices[0:self.num_steps]
                     break
-                step = self.curr_steps[ep]
-                step_indices.extend([[ep, i] for i in range(step)])
-                ep = (ep - 1)%self.max_episode_size
+                step = self.curr_steps[saved_ep_inds[ep_index]]
+                step_indices.extend([[int(saved_ep_inds[ep_index]), i] for i in range(step)])
+                ep_index = (ep_index - 1)%len(saved_ep_inds)
 
         observations_sample = SensorDict(
             {k: torch.zeros(self.num_steps + 1, *ob_shape) for k, ob_shape in
              self.obs_shape.items()}).apply(lambda k, v: v.cuda())
         states_sample = torch.zeros(self.num_steps + 1, self.state_size).cuda()
         embeddings_sample = torch.zeros(self.num_steps + 1, self.agent_memory_size, self.pre_embedding_size).cuda()
-        poses_sample = torch.zeros(self.num_steps+1, self.agent_memory_size, 4)
+        poses_sample = torch.zeros(self.num_steps+1, self.agent_memory_size, 4).cuda()
         rewards_sample = torch.zeros(self.num_steps, 1).cuda()
         values_sample = torch.zeros(self.num_steps + 1, 1).cuda()
         returns_sample = torch.zeros(self.num_steps + 1, 1).cuda()
@@ -190,10 +196,10 @@ class RolloutSensorDictReplayBuffer(object):
         memory_eps = []
         memory_steps = []
         s = time.time()
-        for step_info in step_indices[:-1]:
+        for step_info in step_indices:
             sample_ep, sample_step = step_info
             memory_start = max(sample_step + 1 - self.agent_memory_size, 0)
-            memory_size = sample_step - memory_start
+            memory_size = sample_step - memory_start + 1
             #print('ep {} step {} memory_size {}'.format(sample_ep, sample_step, memory_size+1))
             if mode == 'pretrain':
                 for k in self.observations:
@@ -205,7 +211,7 @@ class RolloutSensorDictReplayBuffer(object):
                 poses_sample[sample_idx, :memory_size + 1] = self.poses[sample_ep, memory_start:sample_step + 1].cuda()
             #debug_sample[sample_idx, :memory_size+1] = self.for_debug[sample_ep, memory_start:sample_step+1].cuda()
             #print(debug_sample[sample_idx].squeeze().int().tolist())
-            memory_masks_sample[sample_idx, :memory_size] = 1.0
+            memory_masks_sample[sample_idx, :memory_size] = 1.
             states_sample[sample_idx] = self.states[sample_ep, sample_step].cuda()
             rewards_sample[sample_idx] = self.rewards[sample_ep, sample_step].cuda()
             action_log_probs_sample[sample_idx] = self.action_log_probs[sample_ep, sample_step].cuda()
@@ -247,7 +253,7 @@ class RolloutSensorDictReplayBuffer(object):
         with torch.no_grad():
             sample_ep, sample_step = step_indices[-1]
             memory_start = max(sample_step + 1 - self.agent_memory_size, 0)
-            memory_size = sample_step - memory_start
+            memory_size = sample_step - memory_start + 1
             memory_masks_sample[sample_idx, :memory_size] = 1.0
             if mode == 'pretrain':
                 next_value = self.actor_critic.get_value(

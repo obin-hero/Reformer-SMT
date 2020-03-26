@@ -54,7 +54,7 @@ class Perception(nn.Module):
             embedded_memory, curr_embedding, _ = self.Memory.embedd_observations(images, poses, prev_actions, memory_masks)
         else:
             batch_pre_embedding, batch_pose = observations
-            embedded_memory, curr_embedding = self.Memory.embedd_with_pre_embeds(batch_pre_embedding.cuda(),batch_pose.cuda(), memory_masks)
+            embedded_memory, curr_embedding = self.Memory.embedd_with_pre_embeds(batch_pre_embedding,batch_pose, memory_masks)
         if memory_masks is not None:
             memory_masks = memory_masks.unsqueeze(1)
         C = self.Encoder(embedded_memory, embedded_memory, memory_masks)

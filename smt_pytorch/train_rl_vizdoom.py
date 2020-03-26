@@ -168,7 +168,8 @@ def main(cfg):
     num_updates = int(cfg.RL.NUM_FRAMES) // cfg.RL.NUM_STEPS * num_train_processes
     abs_time = 0
     start_epoch = 0
-    training_mode = 'train'
+    training_mode = 'pretrain'
+    rollouts.agent_memory_size = 1
     if cfg.training.pretrain_load == 'none':
         training_mode = 'pretrain'
         rollouts.agent_memory_size = 1
@@ -211,6 +212,8 @@ def main(cfg):
                     phase = 'train' if i < num_train_processes else 'val'
                     mlog.update_meter(r, meters={'metrics/rewards'}, phase=phase)
                     mlog.update_meter(l, meters={'diagnostics/lengths'}, phase=phase)
+                    #if l < 20.0:
+                        #print('length {}, timestep {}, reward {}'.format(l, info[i]['step_id'], r))
             episode_rewards *= mask_done
             episode_lengths *= mask_done
 

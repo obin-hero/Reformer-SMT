@@ -87,21 +87,18 @@ class SceneMemory(nn.Module):
         self.memory_buffer = torch.cat([new_embedding.unsqueeze(1) * masks, self.memory_buffer[:, :-1]], 1)
         self.memory_mask = torch.cat([masks.bool(), self.memory_mask[:,:-1]],1)
 
-        curr_rel_pose = torch.zeros([self.B, 1, 5]).cuda()
-        curr_rel_pose[:, :, 2] = 1.0
-        curr_rel_pose[:, :, -1] = torch.exp(-obs['pose'][:,-1]).unsqueeze(1)
-        curr_pose_embedding = self.embed_network.embed_pose(curr_rel_pose)
-        new_embeddings.append(curr_pose_embedding)
-
         self.gt_pose_buffer = torch.cat([obs['pose'].unsqueeze(1)*masks ,self.gt_pose_buffer[:,:-1]],1)
-        relative_pose_buffer = self.get_relative_poses_embedding(obs['pose'])
-
         embedded_memory = []
         length = self.memory_mask.sum(dim=1)
         max_length = int(length.max())
-        memory_buffer = torch.cat((self.memory_buffer[:,:max_length], relative_pose_buffer),-1)
+
+        poses_x, poses_y, poses_th, time_t = obs['pose'][:, 0], obs['pose'][:, 1], obs['pose'][:, 2], obs['pose'][:, 3]
+        poses = torch.stack([poses_x, poses_y, torch.cos(poses_th), torch.sin(poses_th), torch.exp(-time_t)], 1)
+        relative_poses = self.get_relative_poses(poses, self.gt_pose_buffer[:,:max_length])
+
         for i in range(max_length):
-            embedded_memory.append(self.embed_network.final_embed(memory_buffer[:,i]))
+            embedded_pose = self.embed_network.embed_pose(relative_poses[:,i])
+            embedded_memory.append(self.embed_network.final_embed(torch.cat((self.memory_buffer[:,i], embedded_pose),1)))
         embedded_memory = torch.stack(embedded_memory,1)
         return embedded_memory, embedded_memory[:,0:1], self.memory_buffer[:,0], self.memory_mask[:,:max_length]
 
