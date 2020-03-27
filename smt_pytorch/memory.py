@@ -83,52 +83,23 @@ class SceneMemory(nn.Module):
         new_embeddings.append(self.embed_network.embed_image(obs['image']))
         new_embeddings.append(self.embed_network.embed_act(obs['prev_action']))
         new_embedding = torch.cat(new_embeddings,1)
-        self.memory_buffer = torch.cat([(new_embedding * masks).unsqueeze(1), self.memory_buffer[:, :-1]], 1)
-        self.memory_mask = torch.cat([masks.bool(), self.memory_mask[:,:-1]],1)
+        self.memory_buffer = torch.cat([new_embedding.unsqueeze(1), self.memory_buffer[:, :-1]], 1)
+        self.memory_mask = torch.cat([torch.ones_like(masks, dtype=torch.bool), self.memory_mask[:,:-1]],1)
 
-        self.gt_pose_buffer = torch.cat([(obs['pose']*masks).unsqueeze(1),self.gt_pose_buffer[:,:-1]],1)
+        self.gt_pose_buffer = torch.cat([(obs['pose']).unsqueeze(1),self.gt_pose_buffer[:,:-1]],1)
         embedded_memory = []
         length = self.memory_mask.sum(dim=1)
         max_length = int(length.max())
-
-        poses_x, poses_y, poses_th, time_t = obs['pose'][:, 0], obs['pose'][:, 1], obs['pose'][:, 2], obs['pose'][:, 3]
-        poses = torch.stack([poses_x, poses_y, torch.cos(poses_th), torch.sin(poses_th), torch.exp(-time_t)], 1)
-        relative_poses = self.get_relative_poses(poses, self.gt_pose_buffer[:,:max_length])
+        relative_poses = self.get_relative_poses(obs['pose'], self.gt_pose_buffer[:,:max_length])
 
         for i in range(max_length):
             embedded_pose = self.embed_network.embed_pose(relative_poses[:,i])
             embedded_memory.append(self.embed_network.final_embed(torch.cat((self.memory_buffer[:,i], embedded_pose),1)))
-        embedded_memory = torch.stack(embedded_memory,1)
+        embedded_memory = torch.stack(embedded_memory,1) * self.memory_mask[:, :max_length].unsqueeze(-1).float()
         return embedded_memory, embedded_memory[:,0:1], self.memory_buffer[:,0], self.memory_mask[:,:max_length]
 
     def get_length(self):
         return self.memory_mask.sum(dim=1)
-
-    def get_relative_poses_embedding(self, curr_pose):
-        # curr_pose (x,y,orn,t)
-        # shape B * 4
-        curr_pose = curr_pose.unsqueeze(1) # shape B * 1 * 4
-        curr_pose_x, curr_pose_y = curr_pose[:,:,0], curr_pose[:,:,1]
-        gt_pose_x, gt_pose_y = self.gt_pose_buffer[:,:,0], self.gt_pose_buffer[:,:,1]
-        curr_pose_yaw, gt_pose_yaw = curr_pose[:,:,2], self.gt_pose_buffer[:,:,2]
-
-        del_x = gt_pose_x - curr_pose_x
-        del_y = gt_pose_y - curr_pose_y
-        th = torch.atan2(curr_pose_y, curr_pose_x)
-        rel_x = del_x * torch.cos(-th) - del_y * torch.sin(th)
-        rel_y = del_x * torch.sin(th) + del_y * torch.cos(th)
-        rel_yaw = gt_pose_yaw - curr_pose_yaw
-        exp_t = self.gt_pose_buffer[:,:,3]
-
-        past_relative_poses = torch.stack([rel_x, rel_y, torch.cos(rel_yaw), torch.sin(rel_yaw), exp_t],2)
-        past_pose_embeddings = []
-        length = self.memory_mask.sum(dim=1)
-        max_length = int(length.max())
-        for i in range(max_length):
-            if self.memory_mask[:,i].sum() == 0 : break
-            past_pose_embeddings.append(self.embed_network.embed_pose(past_relative_poses[:,i]))
-        pose_embedding = torch.stack(past_pose_embeddings, 1) * self.memory_mask[:,:i+1].unsqueeze(-1).float()
-        return pose_embedding
 
     def get_relative_poses(self, curr_pose, prev_poses):
         # curr_pose (x,y,orn,t)

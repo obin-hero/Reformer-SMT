@@ -8,7 +8,7 @@ C.pose_dim = 5
 C.is_train = True
 
 C.saving = CfgNode()
-C.saving.version = 'train'
+C.saving.version = 'wo_pretrained'
 C.saving.save_dir = '.'
 C.saving.log_interval = 10
 C.saving.vis_interval = 200
@@ -22,7 +22,7 @@ C.training.max_step = 500
 C.training.num_envs = 6
 C.training.gpu = [0]
 C.training.lr = 1e-4
-C.training.resume = 'ep001000.pth'
+C.training.resume = 'none'
 C.training.pretrain_load = 'pretrain_ep001001.pth'
 C.training.pretrain_epoch = 1000
 

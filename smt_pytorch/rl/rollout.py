@@ -92,9 +92,11 @@ class RolloutSensorDictReplayBuffer(object):
             ep_id, step = (episodes[p_num]*self.num_processes + p_num)%self.max_episode_size, steps[p_num]
             next_step = (step + 1)%self.max_episode_step_size
             ep_id_ = ((episodes[p_num] + 1) * self.num_processes + p_num)%self.max_episode_size if mask[p_num] == 0 else ep_id
-            if ep_id != ep_id_ and self.curr_episodes[ep_id_]: 
-                self.reset_episode(ep_id_)
+            if ep_id != ep_id_ :
                 next_step = 0
+                if self.curr_episodes[ep_id_]:
+                    self.reset_episode(ep_id_)
+
             #if self.curr_episodes[ep_id] and step == 0: self.reset_episode(ep_id)
             #print(ep_id, step, self.actions.shape)
             modules.extend([self.states[ep_id_, next_step].copy_,
@@ -211,8 +213,9 @@ class RolloutSensorDictReplayBuffer(object):
                 memory_eps.append(sample_ep)
                 memory_steps.append([memory_start, sample_step+1])
             else:
-                embeddings_sample[sample_idx, :memory_size] = self.pre_embeddings[sample_ep, memory_start:sample_step + 1].cuda()
-                poses_sample[sample_idx, :memory_size] = self.poses[sample_ep, memory_start:sample_step + 1].cuda()
+                reverse_inds = torch.arange(sample_step, memory_start-1, -1)
+                embeddings_sample[sample_idx, :memory_size] = self.pre_embeddings[sample_ep, reverse_inds].cuda()
+                poses_sample[sample_idx, :memory_size] = self.poses[sample_ep, reverse_inds].cuda()
             #debug_sample[sample_idx, :memory_size+1] = self.for_debug[sample_ep, memory_start:sample_step+1].cuda()
             #print(debug_sample[sample_idx].squeeze().int().tolist())
             memory_masks_sample[sample_idx, :memory_size] = 1.
@@ -259,16 +262,21 @@ class RolloutSensorDictReplayBuffer(object):
             memory_start = max(sample_step + 1 - self.agent_memory_size, 0)
             memory_size = sample_step - memory_start + 1
             memory_masks_sample[sample_idx, :memory_size] = 1.0
+            #if memory_size < 100:
+            #    print('hi')
             if mode == 'pretrain':
                 next_value = self.actor_critic.get_value(
                     self.observations.dim2_att(sample_ep, [memory_start, sample_step+1]).apply(lambda k, v: v.cuda()),
                     self.states[sample_ep, sample_step].cuda().unsqueeze(0),
                     mode=mode)
             else :
-                embed_obs = (self.pre_embeddings[sample_ep, memory_start:sample_step + 1].unsqueeze(0).cuda(),
-                             self.poses[sample_ep, memory_start:sample_step + 1].unsqueeze(0).cuda())
+                reverse_inds = torch.arange(sample_step, memory_start - 1, -1)
+                embed_obs = (self.pre_embeddings[sample_ep, reverse_inds].unsqueeze(0).cuda(),
+                             self.poses[sample_ep, reverse_inds].unsqueeze(0).cuda())
                 next_value = self.actor_critic.get_value(embed_obs,
-                                                         self.states[sample_ep, sample_step].cuda().unsqueeze(0), mode=mode)
+                                                         self.states[sample_ep, sample_step].cuda().unsqueeze(0),
+                                                         memory_masks_sample[sample_idx, :memory_size].unsqueeze(0),
+                                                         mode=mode)
 
 
         if self.use_gae:
