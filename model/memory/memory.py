@@ -62,6 +62,7 @@ class SceneMemory(nn.Module):
     def freeze_embedding_network(self):
         self.embed_network.eval()
 
+
     def reset(self, reset_mask) -> None:
         assert(reset_mask.shape[0] == self.B)
         self.memory_buffer = self.memory_buffer * reset_mask.view(-1,1,1).float()
@@ -71,6 +72,8 @@ class SceneMemory(nn.Module):
         embedding_size_wo_pose = 64 + 16 * (self.embed_network.use_action)
         self.memory_buffer = torch.zeros([self.B, self.max_memory_size, embedding_size_wo_pose],dtype=torch.float32).cuda()
         self.memory_mask = torch.zeros([self.B, self.max_memory_size], dtype=torch.bool).cuda()
+        self.gt_pose_buffer = torch.zeros([self.B, self.max_memory_size, 4],
+                                          dtype=torch.float32).cuda() if self.embed_network.use_pose else None
 
     def update_memory(self, obs, masks):
         self.reset(masks)

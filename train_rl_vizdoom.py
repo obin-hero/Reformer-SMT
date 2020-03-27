@@ -174,6 +174,7 @@ def main(cfg):
         training_mode = 'pretrain'
         rollouts.agent_memory_size = cfg.training.pretrain_memory_size
         actor_critic.perception_unit.Memory.max_memory_size = cfg.training.pretrain_memory_size
+        actor_critic.perception_unit.Memory.reset_all()
     else:
         agent.change_optimizer()
 
