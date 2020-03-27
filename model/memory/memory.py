@@ -76,7 +76,7 @@ class SceneMemory(nn.Module):
                                           dtype=torch.float32).cuda() if self.embed_network.use_pose else None
 
     def update_memory(self, obs, masks):
-        self.reset(masks)
+        if (masks == False).any(): self.reset(masks)
         new_embeddings = []
         new_embeddings.append(self.embed_network.embed_image(obs['image']))
         new_embeddings.append(self.embed_network.embed_act(obs['prev_action']))
