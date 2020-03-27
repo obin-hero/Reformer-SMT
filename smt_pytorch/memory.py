@@ -87,7 +87,7 @@ class SceneMemory(nn.Module):
         self.memory_buffer = torch.cat([new_embedding.unsqueeze(1) * masks, self.memory_buffer[:, :-1]], 1)
         self.memory_mask = torch.cat([masks.bool(), self.memory_mask[:,:-1]],1)
 
-        self.gt_pose_buffer = torch.cat([obs['pose'].unsqueeze(1)*masks ,self.gt_pose_buffer[:,:-1]],1)
+        self.gt_pose_buffer = torch.cat([(obs['pose']*masks).unsqueeze(1),self.gt_pose_buffer[:,:-1]],1)
         embedded_memory = []
         length = self.memory_mask.sum(dim=1)
         max_length = int(length.max())

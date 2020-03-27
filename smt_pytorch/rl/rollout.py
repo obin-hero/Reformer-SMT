@@ -91,8 +91,10 @@ class RolloutSensorDictReplayBuffer(object):
         for p_num in range(self.num_processes):
             ep_id, step = (episodes[p_num]*self.num_processes + p_num)%self.max_episode_size, steps[p_num]
             next_step = (step + 1)%self.max_episode_step_size
-            ep_id_ = (episodes[p_num]+1)*self.num_processes + p_num if mask[p_num] == 0 else ep_id
-            if self.curr_episodes[ep_id_] and next_step == 0: self.reset_episode(ep_id_)
+            ep_id_ = ((episodes[p_num] + 1) * self.num_processes + p_num)%self.max_episode_size if mask[p_num] == 0 else ep_id
+            if ep_id != ep_id_ and self.curr_episodes[ep_id_]: 
+                self.reset_episode(ep_id_)
+                next_step = 0
             #if self.curr_episodes[ep_id] and step == 0: self.reset_episode(ep_id)
             #print(ep_id, step, self.actions.shape)
             modules.extend([self.states[ep_id_, next_step].copy_,
@@ -116,7 +118,8 @@ class RolloutSensorDictReplayBuffer(object):
             for p_num in range(self.num_processes):
                 ep_id, step = (episodes[p_num]*self.num_processes + p_num)%self.max_episode_size, steps[p_num]
                 next_step = (step + 1) % self.max_episode_step_size
-                ep_id_ = (episodes[p_num] + 1) * self.num_processes + p_num if mask[p_num] == 0 else ep_id
+                ep_id_ = ((episodes[p_num] + 1) * self.num_processes + p_num)%self.max_episode_size if mask[p_num] == 0 else ep_id
+                if ep_id != ep_id_ : next_step = 0
                 modules = ([self.observations[k][ep_id_, next_step].copy_ for k in self.observations])
                 inputs = tuple([(current_obs[k].peek()[p_num],) for k in self.observations])
                 nn.parallel.parallel_apply(modules, inputs)
@@ -240,8 +243,8 @@ class RolloutSensorDictReplayBuffer(object):
         for n in range(num_of_batch):
             with torch.no_grad():
                 batch_value = self.actor_critic.get_value(batch_memory_sample[n],
-                                                          batch_memory_states[n].cuda(),
-                                                          batch_memory_masks[n].cuda(),
+                                                          batch_memory_states[n],
+                                                          batch_memory_masks[n],
                                                           mode)
                 batch_values_sample.append(batch_value)
 

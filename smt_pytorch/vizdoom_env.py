@@ -125,7 +125,7 @@ class VizDoomEnv(gym.Env):
         self.time_t += 1
         done = (self.game.is_episode_finished())
         #print(reward
-        reward = 3.0 if reward > 0.05 else 0.0
+        reward = 3.0 if reward > 0.05 else -0.001
         if self.time_t >= self._max_step - 1: done = True
         state = self.game.get_state()
         obs = None if done else state
@@ -181,7 +181,9 @@ class VizDoomEnv(gym.Env):
         self.prev_pose = None
         self.stuck_flag = 0
         self.sectors = np.zeros(len(state.sectors))
+        if hasattr(self, 'sectors_polygon'): del self.sectors_polygon
         self.sectors_polygon = self.build_polygon(state.sectors)
+        self.new_room(state)
         self.total_reward = 0.0
         return obs
 

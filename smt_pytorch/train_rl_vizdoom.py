@@ -115,9 +115,6 @@ def main(cfg):
     core_metrics = ['metrics/rewards', 'diagnostics/lengths']
     debug_metrics = ['debug/input_images']
 
-    for metric in ['metrics/visited_cells']:
-        loggable_metrics.append(metric)
-        core_metrics.append(metric)
     for meter in loggable_metrics:
         mlog.add_meter(meter, tnt.meter.ValueSummaryMeter())
     for debug_meter in debug_metrics:
@@ -184,6 +181,7 @@ def main(cfg):
             agent.change_optimizer()
             print('changed training mode')
             save_network(actor_critic.perception_unit.Memory.embed_network, os.path.join(save_dir, 'pretrain_ep%06d.pth'%(epoch)))
+            actor_critic.perception_unit.Memory.embed_network.eval()
 
         for step in range(cfg.RL.NUM_STEPS):
             obs_unpacked = {k: current_obs.peek()[k].peek() for k in current_obs.peek()}
