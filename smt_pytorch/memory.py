@@ -69,10 +69,8 @@ class SceneMemory(nn.Module):
 
     def reset(self, reset_mask) -> None:
         assert(reset_mask.shape[0] == self.B)
-        reset_memory = 1 - reset_mask.view(-1,1,1,1).float()
-        self.memory_buffer = self.memory_buffer * reset_memory
-        reset_memory_mask = 1 - reset_mask.view(-1,1).float()
-        self.memory_mask = self.memory_mask * reset_memory_mask
+        self.memory_buffer = self.memory_buffer * reset_mask.view(-1,1,1).float()
+        self.memory_mask = self.memory_mask * reset_mask.view(-1,1).bool()
 
     def reset_all(self) -> None:
         embedding_size_wo_pose = 64 + 16 * (self.embed_network.use_action)
@@ -80,11 +78,12 @@ class SceneMemory(nn.Module):
         self.memory_mask = torch.zeros([self.B, self.max_memory_size], dtype=torch.bool).cuda()
 
     def update_memory(self, obs, masks):
+        self.reset(masks)
         new_embeddings = []
         new_embeddings.append(self.embed_network.embed_image(obs['image']))
         new_embeddings.append(self.embed_network.embed_act(obs['prev_action']))
         new_embedding = torch.cat(new_embeddings,1)
-        self.memory_buffer = torch.cat([new_embedding.unsqueeze(1) * masks, self.memory_buffer[:, :-1]], 1)
+        self.memory_buffer = torch.cat([(new_embedding * masks).unsqueeze(1), self.memory_buffer[:, :-1]], 1)
         self.memory_mask = torch.cat([masks.bool(), self.memory_mask[:,:-1]],1)
 
         self.gt_pose_buffer = torch.cat([(obs['pose']*masks).unsqueeze(1),self.gt_pose_buffer[:,:-1]],1)
