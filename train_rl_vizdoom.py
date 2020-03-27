@@ -182,6 +182,7 @@ def main(cfg):
         if epoch > cfg.training.pretrain_epoch and training_mode == 'pretrain':
             training_mode = 'train'
             rollouts.agent_memory_size = cfg.training.max_memory_size
+            actor_critic.perception_unit.Memory.max_memory_size = cfg.training.max_memory_size
             #actor_critic.perception_unit.Memory.freeze_embedding_network()
             agent.change_optimizer()
             print('changed training mode')
