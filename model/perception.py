@@ -36,11 +36,7 @@ class Perception(nn.Module):
 
     def act(self, obs, masks, mode='train'): # with memory
         obs['image'] = obs['image'] / 255.0 * 2 - 1.0
-        if mode == 'pretrain':# running with memory collecting
-            embedded_memory, curr_embedding, memory_masks = self.Memory.embedd_observations(obs['image'].cuda(), obs['pose'].cuda(), obs['prev_action'].cuda(), masks)
-            pre_embedding = None
-        else:
-            embedded_memory, curr_embedding, pre_embedding, memory_masks = self.Memory.update_memory(obs, masks)
+        embedded_memory, curr_embedding, pre_embedding, memory_masks = self.Memory.update_memory(obs, masks)
         C = self.Encoder(embedded_memory, embedded_memory, memory_masks.unsqueeze(1))
         x = self.Decoder(curr_embedding, C, memory_masks.unsqueeze(1))
         return x.squeeze(1), pre_embedding

@@ -78,15 +78,15 @@ class SceneMemory(nn.Module):
         new_embeddings.append(self.embed_network.embed_image(obs['image']))
         new_embeddings.append(self.embed_network.embed_act(obs['prev_action']))
         new_embedding = torch.cat(new_embeddings,1)
+
         self.memory_buffer = torch.cat([new_embedding.unsqueeze(1), self.memory_buffer[:, :-1]], 1)
         self.memory_mask = torch.cat([torch.ones_like(masks, dtype=torch.bool), self.memory_mask[:,:-1]],1)
-
         self.gt_pose_buffer = torch.cat([(obs['pose']).unsqueeze(1),self.gt_pose_buffer[:,:-1]],1)
-        embedded_memory = []
+
         length = self.memory_mask.sum(dim=1)
         max_length = int(length.max())
         relative_poses = self.get_relative_poses(obs['pose'], self.gt_pose_buffer[:,:max_length])
-
+        embedded_memory = []
         for i in range(max_length):
             embedded_pose = self.embed_network.embed_pose(relative_poses[:,i])
             embedded_memory.append(self.embed_network.final_embed(torch.cat((self.memory_buffer[:,i], embedded_pose),1)))
@@ -117,19 +117,22 @@ class SceneMemory(nn.Module):
 
     def embedd_observations(self, images, poses, prev_actions, memory_masks=None):
         # B * L * 3 * H * W : L will be 1
-        images, poses, prev_actions = images.squeeze(1), poses.squeeze(1), prev_actions.squeeze(1)
+        #images, poses, prev_actions = images.squeeze(1), poses.squeeze(1), prev_actions.squeeze(1)
+
+        relative_pose = self.get_relative_poses(poses[:, 0], poses)
+
+        L = images.shape[1]
         embedded_memory = []
-        poses_x, poses_y, poses_th, time_t = poses[:,0], poses[:,1] , poses[:,2], poses[:,3]
-        poses = torch.stack([poses_x, poses_y, torch.cos(poses_th), torch.sin(poses_th), torch.exp(-time_t)],1)
-        relative_pose = self.get_relative_poses(poses, poses.unsqueeze(1)).squeeze(1).float()
-        embeddings = [self.embed_network.embed_image(images),
-                      self.embed_network.embed_act(prev_actions),
-                      self.embed_network.embed_pose(relative_pose)]
-        embeddings = torch.cat(embeddings, -1)
-        embedded_memory.append(self.embed_network.final_embed(embeddings))
+        for l in range(L):
+            embeddings = [self.embed_network.embed_image(images[:,l]),
+                          self.embed_network.embed_act(prev_actions[:,l]),
+                          self.embed_network.embed_pose(relative_pose[:,l])]
+            embeddings = torch.cat(embeddings, -1)
+            embedded_memory.append(self.embed_network.final_embed(embeddings))
         if memory_masks is None:
             embedded_memory = torch.stack(embedded_memory, 1)
-        else: embedded_memory = torch.stack(embedded_memory, 1) * memory_masks.view(-1,1,1)
+        else:
+            embedded_memory = torch.stack(embedded_memory, 1) * memory_masks.view(-1,L,1)
         return embedded_memory, embedded_memory[:,0:1], memory_masks
 
     def embedd_with_pre_embeds(self, pre_embeddings, poses, memory_masks=None):
@@ -137,11 +140,11 @@ class SceneMemory(nn.Module):
         embedded_memory = []
         relative_pose = self.get_relative_poses(poses[:, 0], poses)
         for l in range(L):
-            embeddings = [pre_embeddings[:,l:l+1], self.embed_network.embed_pose(relative_pose[:,l:l+1])]
+            embeddings = [pre_embeddings[:,l], self.embed_network.embed_pose(relative_pose[:,l])]
             embeddings = torch.cat(embeddings, -1)
             embedded_memory.append(self.embed_network.final_embed(embeddings))
         if memory_masks is None:
             embedded_memory = torch.stack(embedded_memory, 1)
         else:
-            embedded_memory = torch.stack(embedded_memory, 1) * memory_masks.view(-1,L,1,1)
+            embedded_memory = torch.stack(embedded_memory, 1) * memory_masks.view(-1,L,1)
         return embedded_memory, embedded_memory[:,0:1]

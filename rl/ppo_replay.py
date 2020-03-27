@@ -93,10 +93,10 @@ class PPOReplay(object):
                 if debug_time:
                     print('get sample :', time.time()-s)
                     s = time.time()
-                observations_batch, states_batch, actions_batch, return_batch, masks_batch, old_action_log_probs_batch, adv_targ = sample
+                observations_batch, states_batch, actions_batch, return_batch, masks_batch, state_masks_batch, old_action_log_probs_batch, adv_targ = sample
 
                 cache = {} 
-                values, action_log_probs, dist_entropy, states = self.actor_critic.evaluate_actions(observations_batch, states_batch, masks_batch, actions_batch, mode=mode)
+                values, action_log_probs, dist_entropy, states = self.actor_critic.evaluate_actions(observations_batch, states_batch, masks_batch, actions_batch, state_masks_batch, mode=mode)
                 if debug_time:
                     print('evaluate acto:', time.time()-s)
                     s = time.time()

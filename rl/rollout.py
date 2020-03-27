@@ -40,7 +40,7 @@ class RolloutSensorDictReplayBuffer(object):
         self.returns = torch.zeros(max_episode_size, max_episode_step_size, num_processes, 1, requires_grad=False)
         self.action_log_probs = torch.zeros(max_episode_size, max_episode_step_size, 1, requires_grad=False)
         self.actions = torch.zeros(max_episode_size, max_episode_step_size, 1, requires_grad=False)
-        self.masks = torch.ones(max_episode_size, max_episode_step_size, 1, requires_grad=False)
+        self.masks = torch.zeros(max_episode_size, max_episode_step_size, 1, requires_grad=False)
         self.pre_embedding_size = 64 + 16 * ('prev_action' in cfg.network.inputs)
         self.pre_embeddings = torch.zeros(max_episode_size, max_episode_step_size, self.pre_embedding_size, requires_grad=False)
         #self.for_debug = torch.zeros(max_episode_size, max_episode_step_size, 1)
@@ -210,7 +210,7 @@ class RolloutSensorDictReplayBuffer(object):
                 for k in self.observations:
                     observations_sample[k][sample_idx] = self.observations[k][sample_ep, sample_step].cuda()
                 memory_eps.append(sample_ep)
-                memory_steps.append([memory_start, sample_step+1])
+                memory_steps.append([memory_start, sample_step])
             else:
                 reverse_inds = torch.arange(sample_step, memory_start-1, -1)
                 embeddings_sample[sample_idx, :memory_size] = self.pre_embeddings[sample_ep, reverse_inds].cuda()
@@ -228,7 +228,7 @@ class RolloutSensorDictReplayBuffer(object):
 
         batch_size = 64
         if mode == 'pretrain':
-            memory_sample_dict = self.observations.collect_batched_tower(memory_eps, memory_steps, self.agent_memory_size, batch_size)
+            memory_sample_dict = self.observations.collect_batched_tower(memory_eps, memory_steps, self.agent_memory_size, batch_size, reverse=True)
             num_of_batch = len(memory_sample_dict[list(memory_sample_dict.keys())[0]])
             batch_memory_sample = [{k: v[i].cuda() for k, v in memory_sample_dict.items()} for i in range(num_of_batch)]
         else:
@@ -239,6 +239,7 @@ class RolloutSensorDictReplayBuffer(object):
 
         batch_memory_states = torch.split(states_sample[:sample_idx], batch_size)
         batch_memory_masks = torch.split(memory_masks_sample[:sample_idx], batch_size)
+        batch_state_masks = torch.split(masks_sample[:sample_idx], batch_size)
 
 
         batch_values_sample = []
@@ -247,7 +248,8 @@ class RolloutSensorDictReplayBuffer(object):
                 batch_value = self.actor_critic.get_value(batch_memory_sample[n],
                                                           batch_memory_states[n],
                                                           batch_memory_masks[n],
-                                                          mode)
+                                                          state_mask = batch_state_masks[n],
+                                                          mode = mode)
                 batch_values_sample.append(batch_value)
 
 
@@ -265,8 +267,10 @@ class RolloutSensorDictReplayBuffer(object):
             #    print('hi')
             if mode == 'pretrain':
                 next_value = self.actor_critic.get_value(
-                    self.observations.dim2_att(sample_ep, [memory_start, sample_step+1]).apply(lambda k, v: v.cuda()),
+                    self.observations.dim2_att(sample_ep, [memory_start, sample_step], reverse=True).apply(lambda k, v: v.cuda()),
                     self.states[sample_ep, sample_step].cuda().unsqueeze(0),
+                    memory_masks=None,
+                    state_mask = self.masks[sample_ep, sample_step].cuda().unsqueeze(0),
                     mode=mode)
             else :
                 reverse_inds = torch.arange(sample_step, memory_start - 1, -1)
@@ -275,6 +279,7 @@ class RolloutSensorDictReplayBuffer(object):
                 next_value = self.actor_critic.get_value(embed_obs,
                                                          self.states[sample_ep, sample_step].cuda().unsqueeze(0),
                                                          memory_masks_sample[sample_idx, :memory_size].unsqueeze(0),
+                                                         state_mask = self.masks[sample_ep, sample_step].cuda().unsqueeze(0),
                                                          mode=mode)
 
 
@@ -289,6 +294,9 @@ class RolloutSensorDictReplayBuffer(object):
 
         #print('calculate gae', time.time() - s)
         #s = time.time()
+        if mode == 'pretrain':
+            for k, sensor_ob in memory_sample_dict.items():
+                memory_sample_dict[k] = torch.cat(sensor_ob,0).cuda()
 
         observations_batch = {}
         sampler = BatchSampler(SubsetRandomSampler(range(self.num_steps)), mini_batch_size, drop_last=False)
@@ -296,8 +304,9 @@ class RolloutSensorDictReplayBuffer(object):
         advantages = (advantages - advantages.mean()) / (advantages.std() + 1e-5)
         for indices in sampler:
             if mode == 'pretrain':
-                for k, sensor_ob in observations_sample.items():
-                    observations_batch[k] = sensor_ob[:-1][indices]
+                for k, sensor_ob in memory_sample_dict.items():
+                    observations_batch[k] = sensor_ob[indices]
+
             else:
                 embeddings_batch = embeddings_sample[indices]
                 poses_batch = poses_sample[indices]
@@ -309,7 +318,7 @@ class RolloutSensorDictReplayBuffer(object):
             memory_masks_batch = memory_masks_sample[indices]
             old_action_log_probs_batch = action_log_probs_sample[indices]
             adv_targ = advantages[indices]
-            yield observations_batch, states_batch, actions_batch, return_batch, memory_masks_batch, old_action_log_probs_batch, adv_targ
+            yield observations_batch, states_batch, actions_batch, return_batch, memory_masks_batch, masks_batch ,old_action_log_probs_batch, adv_targ
 
 
 

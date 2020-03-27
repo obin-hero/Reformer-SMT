@@ -163,10 +163,11 @@ def main(cfg):
     num_updates = int(cfg.RL.NUM_FRAMES) // cfg.RL.NUM_STEPS * num_train_processes
     abs_time = 0
     start_epoch = 0
-    training_mode = 'train'
+    training_mode = 'pretrain'
     if cfg.training.pretrain_load == 'none':
         training_mode = 'pretrain'
-        rollouts.agent_memory_size = 1
+        rollouts.agent_memory_size = cfg.training.pretrain_memory_size
+        actor_critic.perception_unit.Memory.max_memory_size = cfg.training.pretrain_memory_size
     else:
         agent.change_optimizer()
 
