@@ -110,10 +110,10 @@ class SceneMemory(nn.Module):
         del_x = gt_pose_x - curr_pose_x
         del_y = gt_pose_y - curr_pose_y
         th = torch.atan2(curr_pose_y, curr_pose_x)
-        rel_x = del_x * torch.cos(-th) - del_y * torch.sin(th)
+        rel_x = del_x * torch.cos(th) - del_y * torch.sin(th)
         rel_y = del_x * torch.sin(th) + del_y * torch.cos(th)
         rel_yaw = gt_pose_yaw - curr_pose_yaw
-        exp_t = prev_poses[:,:,3]
+        exp_t = torch.exp(-(prev_poses[:,0:1,3] - prev_poses[:,:,3]))
 
         relative_poses = torch.stack([rel_x, rel_y, torch.cos(rel_yaw), torch.sin(rel_yaw), exp_t],2)
         return relative_poses

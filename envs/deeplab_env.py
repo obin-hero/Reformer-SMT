@@ -75,9 +75,10 @@ class DeepmindLabEnv(gym.Env):
     def __init__(self, cfg, scene, colors = 'RGBD_INTERLEAVED', width = 64, height = 64, max_step = 512, **kwargs):
         super(DeepmindLabEnv, self).__init__(**kwargs)
 
-        if not scene in LEVELS:
-            raise Exception('Scene %s not supported' % (scene))
+        #if not scene in LEVELS:
+        #    raise Exception('Scene %s not supported' % (scene))
 
+        scene = 'nav_maze_static_01'
         self._colors = colors
         self._lab = deepmind_lab.Lab(scene, [self._colors, 'DEBUG.POS.TRANS', 'DEBUG.POS.ROT', 'DEBUG.CAMERA_INTERLEAVED.TOP_DOWN'],
                                      dict(fps = str(60), width = str(width), height = str(height)))
@@ -100,8 +101,9 @@ class DeepmindLabEnv(gym.Env):
         if isinstance(action, dict): action = action['action']
         reward = self._lab.step(ACTION_LIST[action], num_steps=4)
         self.time_t += 1
-        done = (not self._lab.is_running()) or (reward > 0.05)
-        reward = 5.0 if reward > 0.05 else -0.01
+        done = not self._lab.is_running()
+        #reward = 5.0 if reward > 0.05 else -0.01
+        #reward += -0.01
         if self.time_t >= self._max_step - 1:
             done = True
         #print(self.time_t, self._max_step)
@@ -176,10 +178,10 @@ ACTION_LIST = [
     _action( 20,   0,  0,  0, 0, 0, 0), # look_right 1
     #_action(  0,  10,  0,  0, 0, 0, 0), # look_up
     #_action(  0, -10,  0,  0, 0, 0, 0), # look_down
-    #_action(  0,   0, -1,  0, 0, 0, 0), # strafe_left 2
-    #_action(  0,   0,  1,  0, 0, 0, 0), # strafe_right 3
+    _action(  0,   0, -1,  0, 0, 0, 0), # strafe_left 2
+    _action(  0,   0,  1,  0, 0, 0, 0), # strafe_right 3
     _action(  0,   0,  0,  1, 0, 0, 0), # forward 4
-    _action(  0,   0,  0, -1, 0, 0, 0), # backward 5
+    #_action(  0,   0,  0, -1, 0, 0, 0), # backward 5
     #_action(  0,   0,  0,  0, 1, 0, 0), # fire
     #_action(  0,   0,  0,  0, 0, 1, 0), # jump
     #_action(  0,   0,  0,  0, 0, 0, 1)  # crouch
