@@ -110,7 +110,7 @@ class VizDoomEnv(gym.Env):
             if self.sectors[s_id] == 1.0: continue
             if agent_point.within(self.sectors_polygon[s_id]):
                 self.sectors[s_id] = 1.0
-                return 0.1
+                return 1.0
         return 0.0
 
     def step(self, action):
@@ -119,7 +119,7 @@ class VizDoomEnv(gym.Env):
         self.time_t += 1
         done = (self.game.is_episode_finished())
         #print(reward
-        reward = 3.0 if reward > 0.05 else -0.001
+        reward = 10.0 if reward > 0.05 else -0.01
         if self.time_t >= self._max_step - 1: done = True
         state = self.game.get_state()
         obs = None if done else state

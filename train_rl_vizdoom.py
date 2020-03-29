@@ -12,6 +12,15 @@ devices = ",".join(str(e) for e in cfg.training.gpu)
 os.environ["CUDA_VISIBLE_DEVICES"] = devices
 import torch
 torch.backends.cudnn.benchmark=True
+
+torch.manual_seed(cfg.seed)
+torch.cuda.manual_seed(cfg.seed)
+print("current cpu random seed", torch.initial_seed())
+print("current gpu random seed", torch.cuda.initial_seed())
+
+import numpy as np
+np.random.seed(cfg.seed)
+
 import numpy as np
 import time
 from gym import logger

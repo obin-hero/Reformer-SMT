@@ -67,6 +67,7 @@ class SceneMemory(nn.Module):
         assert(reset_mask.shape[0] == self.B)
         self.memory_buffer = self.memory_buffer * reset_mask.view(-1,1,1).float()
         self.memory_mask = self.memory_mask * reset_mask.view(-1,1).bool()
+        self.gt_pose_buffer = self.gt_pose_buffer * reset_mask.view(-1,1,1).float()
 
     def reset_all(self) -> None:
         embedding_size_wo_pose = 64 + 16 * (self.embed_network.use_action)
