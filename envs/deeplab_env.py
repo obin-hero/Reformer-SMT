@@ -124,7 +124,7 @@ class DeepmindLabEnv(gym.Env):
             self.stuck_flag = 0.0
         self.prev_pose = [pose_x, pose_y]
         self._last_action = action
-        obs = {'image': image.transpose(2,1,0), 'pose': np.array([pose_x, pose_y, pose_yaw, self.time_t]), 'prev_action': np.eye(self.action_dim)[self._last_action]}
+        obs = {'image': image.transpose(2,1,0), 'pose': np.array([pose_x, pose_y, pose_yaw, self.time_t+1]), 'prev_action': np.eye(self.action_dim)[self._last_action]}
         return obs, reward, done, {'episode_id': self.episode_id, 'step_id':self.time_t}
 
 
@@ -138,7 +138,7 @@ class DeepmindLabEnv(gym.Env):
         #print(self._lab.observations()['DEBUG.POS.TRANS'],self._lab.observations()['DEBUG.POS.ROT'])
         #if done : print('------------------------------done!')
         self._last_action = None
-        obs = {'image': image.transpose(2,1,0), 'pose': np.array([pose_x, pose_y, pose_yaw, self.time_t]), 'prev_action': np.zeros(self.action_dim)}
+        obs = {'image': image.transpose(2,1,0), 'pose': np.array([pose_x, pose_y, pose_yaw, self.time_t+1]), 'prev_action': np.zeros(self.action_dim)}
         self.episode_id += 1
         self.prev_pose = None
         self.stuck_flag = 0
@@ -178,10 +178,10 @@ ACTION_LIST = [
     _action( 20,   0,  0,  0, 0, 0, 0), # look_right 1
     #_action(  0,  10,  0,  0, 0, 0, 0), # look_up
     #_action(  0, -10,  0,  0, 0, 0, 0), # look_down
-    _action(  0,   0, -1,  0, 0, 0, 0), # strafe_left 2
-    _action(  0,   0,  1,  0, 0, 0, 0), # strafe_right 3
+    #_action(  0,   0, -1,  0, 0, 0, 0), # strafe_left 2
+    #_action(  0,   0,  1,  0, 0, 0, 0), # strafe_right 3
     _action(  0,   0,  0,  1, 0, 0, 0), # forward 4
-    #_action(  0,   0,  0, -1, 0, 0, 0), # backward 5
+    _action(  0,   0,  0, -1, 0, 0, 0), # backward 5
     #_action(  0,   0,  0,  0, 1, 0, 0), # fire
     #_action(  0,   0,  0,  0, 0, 1, 0), # jump
     #_action(  0,   0,  0,  0, 0, 0, 1)  # crouch
