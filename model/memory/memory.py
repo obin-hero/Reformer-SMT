@@ -1,6 +1,3 @@
-"""
-A neural memory module inspired by the Scene Memory Transformer paper.
-"""
 '''
 -------> edited version for pytorch
 '''
