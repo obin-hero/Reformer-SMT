@@ -55,7 +55,7 @@ class PPOReplay(object):
 
     def change_optimizer(self,mode='train'):
         if mode == 'train':
-            params_wo_embed_network = [p for n, p in self.actor_critic.named_parameters() if 'embed' not in n]
+            params_wo_embed_network = [p for n, p in self.actor_critic.named_parameters() if 'embed_image' not in n or 'embed_act' not in n]
             self.optimizer = optim.Adam(params_wo_embed_network,
                                         lr=self.lr,
                                         eps=self.eps,

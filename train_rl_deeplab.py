@@ -241,7 +241,7 @@ def main(cfg):
             else:
                 rollouts.insert([i['episode_id'] for i in info],
                                 [i['step_id'] for i in info],
-                                (torch.tensor(obs['pose']), pre_embedding),
+                                (current_obs['pose'].peek(), pre_embedding),
                                 states[:num_train_processes],
                                 action[:num_train_processes],
                                 action_log_prob[:num_train_processes],
