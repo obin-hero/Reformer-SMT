@@ -92,7 +92,8 @@ class VizDoomEnv(gym.Env):
         self.action_dim = self.action_space.n
         self.observation_space = OrderedDict({'image': gym.spaces.Box(0, 255, (4, 64, 64), dtype = np.uint8),
                                               'pose': gym.spaces.Box(-np.Inf, np.Inf, (4,), dtype=np.float32),
-                                              'prev_action': gym.spaces.Box(0, 1, (self.action_dim,), dtype=np.float32)})
+                                              'prev_action': gym.spaces.Box(0, 1, (self.action_dim,), dtype=np.float32),
+                                              'episode': gym.spaces.Box(0,1,(1,),dtype=np.float32)})
         self._last_observation = None
         self._last_action = None
         self.time_t = -1
@@ -146,6 +147,8 @@ class VizDoomEnv(gym.Env):
         self.prev_pose = [pose_x, pose_y]
         self._last_action = action
         obs = {'image': image.transpose(2,1,0), 'pose': np.array([pose_x, pose_y, pose_yaw, self.time_t+1]), 'prev_action': np.eye(self.action_dim)[self._last_action]}
+        # for debug
+        obs['episode'] = self.episode_id * 6 + self.seed
         return obs, reward, done, {'episode_id': self.episode_id, 'step_id':self.time_t}
 
     def process_image(self, image, resize=True, ch3=False):
@@ -179,6 +182,7 @@ class VizDoomEnv(gym.Env):
         self.sectors_polygon = self.build_polygon(state.sectors)
         self.new_room(state)
         self.total_reward = 0.0
+        obs['episode'] = self.episode_id * 6 + self.seed
         return obs
 
     def build_polygon(self, sectors):

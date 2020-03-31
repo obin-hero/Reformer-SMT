@@ -16,7 +16,7 @@ class LSHAttblock(nn.Module):
                  batch_size, seqlen, dim = qk.shape
         '''
         self.attn = LSHSelfAttention(dim=cfg.d_model, heads=cfg.n_head, bucket_size=cfg.lsh.bucket_size,
-                                     n_hashes=cfg.lsh.n_hasehes, add_local_attn_hash=cfg.lsh.add_local_attn_hash,
+                                     n_hashes=cfg.lsh.n_hashes, add_local_attn_hash=cfg.lsh.add_local_attn_hash,
                                      causal=cfg.lsh.causal, attn_chunks=cfg.lsh.attn_chunks,
                                      random_rotations_per_head=cfg.lsh.random_rotations_per_head,
                                      attend_across_buckets=cfg.lsh.attend_across_buckets,
@@ -49,13 +49,9 @@ class LSHPerception(nn.Module):
 
     def act(self, obs, masks, mode='train'): # with memory
         obs['image'] = obs['image'] / 255.0 * 2 - 1.0
-        if mode == 'pretrain':# running with memory collecting
-            embedded_memory, curr_embedding, memory_masks = self.Memory.embedd_observations(obs['image'].cuda(), obs['pose'].cuda(), obs['prev_action'].cuda(), masks)
-            pre_embedding = None
-        else:
-            embedded_memory, curr_embedding, pre_embedding, memory_masks = self.Memory.update_memory(obs, masks)
+        embedded_memory, curr_embedding, pre_embedding, memory_masks = self.Memory.update_memory(obs, masks)
         C = self.Encoder(embedded_memory, input_mask=memory_masks)
-        x = self.Decoder(curr_embedding, keys=C, context_masks=memory_masks)
+        x = self.Decoder(curr_embedding, keys=C[:,1:], context_mask=memory_masks[:,1:])
         return x.squeeze(1), pre_embedding
 
     def forward(self, observations, memory_masks=None, mode='train'): # without memory
@@ -66,8 +62,12 @@ class LSHPerception(nn.Module):
         else:
             batch_pre_embedding, batch_pose = observations
             embedded_memory, curr_embedding = self.Memory.embedd_with_pre_embeds(batch_pre_embedding,batch_pose, memory_masks)
+        #if memory_masks is not None:
+         #   memory_masks = memory_masks.unsqueeze(1)
         if memory_masks is not None:
-            memory_masks = memory_masks.unsqueeze(1)
+            memory_masks = memory_masks.bool()
         C = self.Encoder(embedded_memory, input_mask=memory_masks)
-        x = self.Decoder(curr_embedding, keys=C, context_masks=memory_masks)
+        if memory_masks is not None:
+            memory_masks = memory_masks[:,1:]
+        x = self.Decoder(curr_embedding, keys=C[:,1:], context_mask=memory_masks)
         return x.squeeze(1)

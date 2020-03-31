@@ -25,7 +25,7 @@ C.training.lr = 1e-4
 C.training.resume = 'none'
 C.training.pretrain_load = 'pretrain_ep001001.pth'
 C.training.pretrain_epoch = 1000
-C.training.pretrain_memory_size = 10
+C.training.pretrain_memory_size = 1
 
 C.attention = CfgNode()
 C.attention.n_head = 8
@@ -35,11 +35,11 @@ C.attention.d_v = 128
 C.attention.dropout = 0.1
 
 C.attention.lsh = CfgNode()
-C.attention.lsh.bucket_size = 64
-C.attention.lsh.n_hashes = 8
+C.attention.lsh.bucket_size = 10
+C.attention.lsh.n_hashes = 4
 C.attention.lsh.add_local_attn_hash = False
-C.attention.lsh.causal = False
-C.attention.lsh.attn_chunks = 1
+C.attention.lsh.causal = True
+C.attention.lsh.attn_chunks = 8
 C.attention.lsh.random_rotations_per_head = False
 C.attention.lsh.attend_across_buckets = True
 C.attention.lsh.allow_duplicate_attention = True
@@ -47,8 +47,9 @@ C.attention.lsh.num_mem_kv = 0
 C.attention.lsh.one_value_head = False
 C.attention.lsh.full_attn_thres = 'none'
 C.attention.lsh.return_attn = False
-C.attention.lsh.post_attn_dropout = 0.
+C.attention.lsh.post_attn_dropout = 0.1
 C.attention.lsh.dropout = 0.1
+C.attention.lsh.use_full_attn = False
 
 C.network = CfgNode()
 C.network.inputs = ['image', 'prev_action', 'pose']

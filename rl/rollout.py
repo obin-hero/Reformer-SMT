@@ -111,7 +111,8 @@ class RolloutSensorDictReplayBuffer(object):
 
             if mode == 'train':
                 poses, pred_embedding = current_obs
-                modules.extend([self.poses[ep_id_, next_step].copy_, self.pre_embeddings[ep_id_, next_step].copy_])
+                modules.extend([self.poses[ep_id, step].copy_, self.pre_embeddings[ep_id, step].copy_])
+                #modules.extend([self.poses[ep_id_, next_step].copy_, self.pre_embeddings[ep_id_, next_step].copy_])
                 inputs.extend([poses[p_num], pred_embedding[p_num]])
 
         nn.parallel.parallel_apply(modules, inputs)

@@ -89,7 +89,7 @@ class FullQKAttention(nn.Module):
         return out, dot, torch.empty(0)
 
 class LSHSelfAttention(nn.Module):
-    def __init__(self, dim, heads = 8, bucket_size = 64, n_hashes = 8,
+    def __init__(self, dim, heads = 8, bucket_size = 64, n_hashes = 4,
                  add_local_attn_hash = False, causal = False, attn_chunks = 1,
                  random_rotations_per_head = False, attend_across_buckets = True,
                  allow_duplicate_attention = True, num_mem_kv = 0, one_value_head = False,
@@ -115,6 +115,7 @@ class LSHSelfAttention(nn.Module):
         self.post_attn_dropout = nn.Dropout(post_attn_dropout)
 
         self.use_full_attn = use_full_attn
+        full_attn_thres = None if full_attn_thres == 'none' else full_attn_thres
         self.full_attn_thres = default(full_attn_thres, bucket_size)
 
         self.num_mem_kv = num_mem_kv
@@ -140,14 +141,9 @@ class LSHSelfAttention(nn.Module):
         v = self.tov(x)
         v = v.repeat(1, 1, self.v_head_repeats)
 
-        def merge_heads(v):
-            return v.view(b, kv_len, h, -1).transpose(1, 2).reshape(b * h, kv_len, -1)
-
-        def split_heads(v):
-            return v.view(b, h, t, -1).transpose(1, 2).contiguous()
-
-        qk = merge_heads(qk)
-        v = merge_heads(v)
+        # merge head
+        qk = qk.view(b, kv_len, h, -1).transpose(1, 2).reshape(b * h, kv_len, -1)
+        v = v.view(b, kv_len, h, -1).transpose(1, 2).reshape(b * h, kv_len, -1)
 
         masks = {}
         if input_mask is not None or context_mask is not None:
@@ -168,7 +164,8 @@ class LSHSelfAttention(nn.Module):
         attn_fn_in_chunks = process_inputs_chunk(partial_attn_fn, chunks = self.attn_chunks)
 
         out, attn, buckets = attn_fn_in_chunks(qk, v, **masks)
-        out = split_heads(out).view(b, t, e)
+        # split head
+        out = out.view(b, h, t, -1).transpose(1, 2).contiguous().view(b, t, e)
 
         if self.callback is not None:
             self.callback(attn.reshape(b, h, t, -1), buckets.reshape(b, h, -1))

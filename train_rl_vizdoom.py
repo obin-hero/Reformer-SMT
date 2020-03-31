@@ -108,9 +108,12 @@ def main(cfg):
         actor_critic.load_state_dict(state_dict)
         print('loaded {}'.format(cfg.training.resume))
     if cfg.training.pretrain_load != 'none':
-        state_dict = torch.load(os.path.join(save_dir, cfg.training.pretrain_load))
-        actor_critic.perception_unit.Memory.embed_network.load_state_dict(state_dict)
-        print('loaded {}'.format(cfg.training.pretrain_load))
+        try:
+            state_dict = torch.load(os.path.join(save_dir, cfg.training.pretrain_load))
+            actor_critic.perception_unit.Memory.embed_network.load_state_dict(state_dict)
+            print('loaded {}'.format(cfg.training.pretrain_load))
+        except:
+            print('failed to load any pretrained weight')
 
     uuid = cfg.saving.version
     mlog = tnt.torchnet.logger.TensorboardMeterLogger(env=uuid,
@@ -142,7 +145,7 @@ def main(cfg):
     observation_space = envs.observation_space
     retained_obs_shape = {k: v.shape
                           for k, v in observation_space.items()
-                          if k in cfg.network.inputs}
+                          }#if k in cfg.network.inputs}
     total_processes = cfg.training.num_envs
     current_obs = StackedSensorDictStorage(total_processes, cfg.RL.NUM_STACK, retained_obs_shape)
     current_train_obs = StackedSensorDictStorage(total_processes, cfg.RL.NUM_STACK, retained_obs_shape)
@@ -250,7 +253,7 @@ def main(cfg):
             else:
                 rollouts.insert([i['episode_id'] for i in info],
                                 [i['step_id'] for i in info],
-                                (torch.tensor(obs['pose']), pre_embedding),
+                                (current_obs['pose'].peek(), pre_embedding),
                                 states[:num_train_processes],
                                 action[:num_train_processes],
                                 action_log_prob[:num_train_processes],

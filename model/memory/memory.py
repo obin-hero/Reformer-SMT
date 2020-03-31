@@ -81,6 +81,8 @@ class SceneMemory(nn.Module):
         new_embedding = torch.cat(new_embeddings,1)
 
         self.memory_buffer = torch.cat([new_embedding.unsqueeze(1), self.memory_buffer[:, :-1]], 1)
+        #self.memory_buffer[:, 0, -1] = obs['pose'][:, -1]
+        #self.memory_buffer[:, 0, -2] = obs['episode'].squeeze()
         self.memory_mask = torch.cat([torch.ones_like(masks, dtype=torch.bool), self.memory_mask[:,:-1]],1)
         self.gt_pose_buffer = torch.cat([(obs['pose']).unsqueeze(1),self.gt_pose_buffer[:,:-1]],1)
 
@@ -90,8 +92,14 @@ class SceneMemory(nn.Module):
         embedded_memory = []
         for i in range(max_length):
             embedded_pose = self.embed_network.embed_pose(relative_poses[:,i])
+            # for debug
+            #embedded_pose[:,-1] = obs['pose'][:,-1]
+            #embedded_pose[:,-2] = obs['episode'].squeeze()
             embedded_memory.append(self.embed_network.final_embed(torch.cat((self.memory_buffer[:,i], embedded_pose),1)))
         embedded_memory = torch.stack(embedded_memory,1) * self.memory_mask[:, :max_length].unsqueeze(-1).float()
+
+        #pad_length = self.max_memory_size - max_length
+        #embedded_memory = torch.cat((embedded_memory, torch.zeros([embedded_memory.shape[0], pad_length, *embedded_memory.shape[2:]]).to(embedded_memory.device)),1)
         return embedded_memory, embedded_memory[:,0:1], self.memory_buffer[:,0], self.memory_mask[:,:max_length]
 
     def get_length(self):
