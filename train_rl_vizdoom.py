@@ -244,7 +244,7 @@ def main(cfg):
                         current_train_obs[k].insert(obs[k][:num_train_processes], mask_done[:num_train_processes])
                 rollouts.insert([i['episode_id'] for i in info[:num_train_processes]],
                                 [i['step_id'] for i in info[:num_train_processes]],
-                                current_train_obs.peek()[:num_train_processes],
+                                current_train_obs.peek(),
                                 states[:num_train_processes],
                                 action[:num_train_processes],
                                 action_log_prob[:num_train_processes],
@@ -255,7 +255,7 @@ def main(cfg):
             else:
                 rollouts.insert([i['episode_id'] for i in info[:num_train_processes]],
                                 [i['step_id'] for i in info[:num_train_processes]],
-                                (current_obs['pose'].peek()[:num_train_processes], pre_embedding[:num_train_processes]),
+                                (current_obs['pose'].peek(), pre_embedding[:num_train_processes]),
                                 states[:num_train_processes],
                                 action[:num_train_processes],
                                 action_log_prob[:num_train_processes],

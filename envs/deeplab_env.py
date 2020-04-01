@@ -72,13 +72,12 @@ class DeepLabMultiWrapper(gym.Wrapper):
 
 class DeepmindLabEnv(gym.Env):
     metadata = {'render.modes': ['rgb_array']}
-    def __init__(self, cfg, scene, colors = 'RGBD_INTERLEAVED', width = 64, height = 64, max_step = 512, **kwargs):
+    def __init__(self, cfg, scene='nav_maze_random_goal_01', colors = 'RGBD_INTERLEAVED', width = 64, height = 64, max_step = 512, **kwargs):
         super(DeepmindLabEnv, self).__init__(**kwargs)
 
         #if not scene in LEVELS:
         #    raise Exception('Scene %s not supported' % (scene))
-
-        scene = 'nav_maze_static_01'
+        scene = cfg.task.deeplab_scene
         self._colors = colors
         self._lab = deepmind_lab.Lab(scene, [self._colors, 'DEBUG.POS.TRANS', 'DEBUG.POS.ROT', 'DEBUG.CAMERA_INTERLEAVED.TOP_DOWN'],
                                      dict(fps = str(30), width = str(width), height = str(height)))
@@ -199,7 +198,7 @@ if __name__== '__main__':
     elif run_mode == 'play':
         env = DeepmindLabEnv(get_config(),'nav_maze_static_01', width=256, height=256)
         env.reset()
-        for i in range(1000):
+        for i in range(10002):
             im = env.render('rgb_array')
             cv2.imshow('render', im[:,:,[2,1,0]])
             key = cv2.waitKey(0)
@@ -211,6 +210,6 @@ if __name__== '__main__':
             elif key == ord('l'): action = 1
             elif key == ord('q'): break
             obs, reward, done, _ = env.step(action)
-            print(i, jjjreward)
-            if done: break
+            print(i, reward)
+            #if done: break
 

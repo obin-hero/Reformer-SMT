@@ -8,46 +8,11 @@ from shapely.geometry import Point, Polygon
 from mazeexplorer import MazeExplorer
 import os
 
-class LazyFrames(object):
-    def __init__(self, frames):
-        """This object ensures that common frames between the observations are only stored once.
-        It exists purely to optimize memory usage which can be huge for DQN's 1M frames replay
-        buffers.
-        This object should only be converted to numpy array before being passed to the model.
-        You'd not believe how complex the previous solution was."""
-        self._frames = frames
-        self._out = None
-
-    def _force(self):
-        if self._out is None:
-            self._out = np.concatenate(self._frames, axis=-1)
-            self._frames = None
-        return self._out
-
-    def __array__(self, dtype=None):
-        out = self._force()
-        if dtype is not None:
-            out = out.astype(dtype)
-        return out
-
-    def __len__(self):
-        return len(self._force())
-
-    def __getitem__(self, i):
-        return self._force()[i]
-
-    def count(self):
-        frames = self._force()
-        return frames.shape[frames.ndim - 1]
-
-    def frame(self, i):
-        return self._force()[..., i]
-
 import time
 def print_time(log, start):
     print(log, time.time() - start)
     return time.time()
-class VizDoomMultiWrapper(gym.Wrapper):
+class ExplorerMultiWrapper(gym.Wrapper):
     def __init__(self, env, k=4):
         env.action_space = env.action_spaces[0]
         env.observation_space = env.observation_spaces[0]
@@ -104,7 +69,7 @@ class MazeExplorerEnv(gym.Env):
         image = np.concatenate([self.process_image(self._last_observation.screen_buffer),
                                 self.process_image(self._last_observation.depth_buffer)],2)
         agent_pose = self._last_observation.game_variables
-        pose_x, pose_y = agent_pose[0]/400, agent_pose[1]/400
+        pose_x, pose_y = agent_pose[0]/2000, agent_pose[1]/2000
         pose_yaw = agent_pose[-1]/360
         #print(agent_pose, self.stuck_flag, self.time_t,self.game.is_episode_finished())k
         self.total_reward += reward
@@ -145,7 +110,7 @@ class MazeExplorerEnv(gym.Env):
         self.time_t = -1
         image = np.concatenate([self.process_image(state.screen_buffer), self.process_image(state.depth_buffer)],2)
         agent_pose = state.game_variables[[0,1,-1]]
-        pose_x, pose_y = agent_pose[0]/400, agent_pose[1]/400
+        pose_x, pose_y = agent_pose[0]/2000, agent_pose[1]/2000
         pose_yaw = agent_pose[-1]/360
         self._last_action = None
         obs = {'image': image.transpose(2,1,0), 'pose': np.array([pose_x, pose_y, pose_yaw, self.time_t + 1]), 'prev_action': np.zeros(self.action_dim)}
@@ -211,7 +176,7 @@ if __name__== '__main__':
             elif key == ord('d'): action = 4
             elif key == ord('q'): break
             obs, reward, done, _ = env.step(action)
-            print(reward)
+            print(reward, obs['pose'])
             if done:
                 break
 
