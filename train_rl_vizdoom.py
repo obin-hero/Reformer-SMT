@@ -82,7 +82,7 @@ def main(cfg):
                                                visdom_log_file,
                                                vis_interval,
                                                visdom_server,
-                                               visdom_port) for i in range(cfg.training.num_envs)])
+                                               visdom_port) for i in range(cfg.training.num_envs+cfg.training.valid_num_envs)])
     envs = VizDoomMultiWrapper(envs)
 
     perception_model = Perception(cfg)
@@ -146,21 +146,23 @@ def main(cfg):
     retained_obs_shape = {k: v.shape
                           for k, v in observation_space.items()
                           }#if k in cfg.network.inputs}
-    total_processes = cfg.training.num_envs
+
+    num_train_processes = cfg.training.num_envs
+    num_valid_processes = cfg.training.valid_num_envs
+    total_processes = num_train_processes + num_valid_processes
     current_obs = StackedSensorDictStorage(total_processes, cfg.RL.NUM_STACK, retained_obs_shape)
     current_train_obs = StackedSensorDictStorage(total_processes, cfg.RL.NUM_STACK, retained_obs_shape)
     current_obs.cuda()
     current_train_obs.cuda()
 
-    num_train_processes = cfg.training.num_envs
-    episode_rewards = torch.zeros([num_train_processes, 1])
-    episode_lengths = torch.zeros([num_train_processes, 1])
+    episode_rewards = torch.zeros([total_processes, 1])
+    episode_lengths = torch.zeros([total_processes, 1])
 
     # First observation
     obs = envs.reset()
     current_obs.insert(obs)
-    mask_done = torch.FloatTensor([[1.0] for _ in range(num_train_processes)]).pin_memory()
-    states = torch.zeros(num_train_processes, 128).pin_memory()
+    mask_done = torch.FloatTensor([[1.0] for _ in range(total_processes)]).pin_memory()
+    states = torch.zeros(total_processes, 128).pin_memory()
 
     assert cfg.replay_buffer.max_episode % num_train_processes == 0
     rollouts = RolloutSensorDictReplayBuffer(cfg,
@@ -240,9 +242,9 @@ def main(cfg):
                 for k in obs:
                     if k in current_train_obs.sensor_names:
                         current_train_obs[k].insert(obs[k][:num_train_processes], mask_done[:num_train_processes])
-                rollouts.insert([i['episode_id'] for i in info],
-                                [i['step_id'] for i in info],
-                                current_train_obs.peek(),
+                rollouts.insert([i['episode_id'] for i in info[:num_train_processes]],
+                                [i['step_id'] for i in info[:num_train_processes]],
+                                current_train_obs.peek()[:num_train_processes],
                                 states[:num_train_processes],
                                 action[:num_train_processes],
                                 action_log_prob[:num_train_processes],
@@ -251,9 +253,9 @@ def main(cfg):
                                 mask_done[:num_train_processes],
                                 training_mode)
             else:
-                rollouts.insert([i['episode_id'] for i in info],
-                                [i['step_id'] for i in info],
-                                (current_obs['pose'].peek(), pre_embedding),
+                rollouts.insert([i['episode_id'] for i in info[:num_train_processes]],
+                                [i['step_id'] for i in info[:num_train_processes]],
+                                (current_obs['pose'].peek()[:num_train_processes], pre_embedding[:num_train_processes]),
                                 states[:num_train_processes],
                                 action[:num_train_processes],
                                 action_log_prob[:num_train_processes],
@@ -301,6 +303,7 @@ def main(cfg):
             # Save checkpoint
         if epoch % cfg.saving.save_interval == 0 :
             save_network(agent.actor_critic, os.path.join(save_dir, 'ep%06d.pth'%(epoch)))
+
 
 
 if __name__=='__main__':

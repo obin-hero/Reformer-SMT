@@ -13,6 +13,7 @@ C.saving.save_dir = '.'
 C.saving.log_interval = 10
 C.saving.vis_interval = 200
 C.saving.save_interval = 500
+C.saving.eval_interval = 500
 
 C.training = CfgNode()
 C.training.batch_size = 64
@@ -20,6 +21,7 @@ C.training.max_memory_size = 100
 C.training.embedding_size = 128
 C.training.max_step = 500
 C.training.num_envs = 6
+C.training.valid_num_envs = 2
 C.training.gpu = [0]
 C.training.lr = 1e-4
 C.training.resume = 'none'

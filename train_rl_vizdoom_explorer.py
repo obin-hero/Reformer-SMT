@@ -12,14 +12,23 @@ devices = ",".join(str(e) for e in cfg.training.gpu)
 os.environ["CUDA_VISIBLE_DEVICES"] = devices
 import torch
 torch.backends.cudnn.benchmark=True
+
+torch.manual_seed(cfg.seed)
+torch.cuda.manual_seed(cfg.seed)
+print("current cpu random seed", torch.initial_seed())
+print("current gpu random seed", torch.cuda.initial_seed())
+
+import numpy as np
+np.random.seed(cfg.seed)
+
 import numpy as np
 import time
 from gym import logger
 from ob_utils import mkdir
 ## ---------------------------------
-from envs.make_env_fn import deeplab_make_env_fn
+from envs.make_env_fn import vizdoom_make_env_fn
 from envs.multi_env import PreprocessVectorEnv
-from envs.deeplab_env import DeepLabMultiWrapper
+from envs.vizdoom_env import VizDoomMultiWrapper
 from rl.stackedobservation import StackedSensorDictStorage
 import tnt as tnt
 import torchvision
@@ -65,7 +74,7 @@ def main(cfg):
     visdom_name, vis_interval = cfg.visdom.name, cfg.visdom.vis_interval
     visdom_server, visdom_port = cfg.visdom.server, cfg.visdom.port
 
-    envs = PreprocessVectorEnv(deeplab_make_env_fn,
+    envs = PreprocessVectorEnv(vizdoom_make_env_fn,
                                   env_fn_args=[(cfg,
                                                 i,
                                                log_dir,
@@ -73,8 +82,8 @@ def main(cfg):
                                                visdom_log_file,
                                                vis_interval,
                                                visdom_server,
-                                               visdom_port) for i in range(cfg.training.num_envs+cfg.training.valid_num_envs)])
-    envs = DeepLabMultiWrapper(envs)
+                                               visdom_port) for i in range(cfg.training.num_envs)])
+    envs = VizDoomMultiWrapper(envs)
 
     perception_model = Perception(cfg)
     actor_critic = RecurrentPolicyWithBase(perception_model, action_space=envs.action_space)
@@ -99,9 +108,12 @@ def main(cfg):
         actor_critic.load_state_dict(state_dict)
         print('loaded {}'.format(cfg.training.resume))
     if cfg.training.pretrain_load != 'none':
-        state_dict = torch.load(os.path.join(save_dir, cfg.training.pretrain_load))
-        actor_critic.perception_unit.Memory.embed_network.load_state_dict(state_dict)
-        print('loaded {}'.format(cfg.training.pretrain_load))
+        try:
+            state_dict = torch.load(os.path.join(save_dir, cfg.training.pretrain_load))
+            actor_critic.perception_unit.Memory.embed_network.load_state_dict(state_dict)
+            print('loaded {}'.format(cfg.training.pretrain_load))
+        except:
+            print('failed to load any pretrained weight')
 
     uuid = cfg.saving.version
     mlog = tnt.torchnet.logger.TensorboardMeterLogger(env=uuid,
@@ -133,10 +145,8 @@ def main(cfg):
     observation_space = envs.observation_space
     retained_obs_shape = {k: v.shape
                           for k, v in observation_space.items()
-                          if k in cfg.network.inputs}
-    num_train_processes = cfg.training.num_envs
-    num_valid_processes = cfg.training.valid_num_envs
-    total_processes = num_train_processes + num_valid_processes
+                          }#if k in cfg.network.inputs}
+    total_processes = cfg.training.num_envs
     current_obs = StackedSensorDictStorage(total_processes, cfg.RL.NUM_STACK, retained_obs_shape)
     current_train_obs = StackedSensorDictStorage(total_processes, cfg.RL.NUM_STACK, retained_obs_shape)
     current_obs.cuda()
@@ -230,9 +240,9 @@ def main(cfg):
                 for k in obs:
                     if k in current_train_obs.sensor_names:
                         current_train_obs[k].insert(obs[k][:num_train_processes], mask_done[:num_train_processes])
-                rollouts.insert([i['episode_id'] for i in info[:num_train_processes]],
-                                [i['step_id'] for i in info[:num_train_processes]],
-                                current_train_obs.peek()[:num_train_processes],
+                rollouts.insert([i['episode_id'] for i in info],
+                                [i['step_id'] for i in info],
+                                current_train_obs.peek(),
                                 states[:num_train_processes],
                                 action[:num_train_processes],
                                 action_log_prob[:num_train_processes],
@@ -241,9 +251,9 @@ def main(cfg):
                                 mask_done[:num_train_processes],
                                 training_mode)
             else:
-                rollouts.insert([i['episode_id'] for i in info[:num_train_processes]],
-                                [i['step_id'] for i in info[:num_train_processes]],
-                                (current_obs['pose'].peek()[:num_train_processes], pre_embedding[:num_train_processes]),
+                rollouts.insert([i['episode_id'] for i in info],
+                                [i['step_id'] for i in info],
+                                (current_obs['pose'].peek(), pre_embedding),
                                 states[:num_train_processes],
                                 action[:num_train_processes],
                                 action_log_prob[:num_train_processes],
@@ -252,7 +262,6 @@ def main(cfg):
                                 mask_done[:num_train_processes],
                                 training_mode)
             current_obs.insert(obs, mask_done)
-
 
             mlog.update_meter(value[:num_train_processes].mean().item(), meters={'diagnostics/value'}, phase='train')
         if cfg.is_train:
