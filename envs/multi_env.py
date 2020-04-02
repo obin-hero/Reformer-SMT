@@ -543,7 +543,24 @@ class PreprocessVectorEnv(VectorEnv):
         else:
             return self.buf_obs
 
+from collections import deque
+class MultiWrapper(gym.Wrapper):
+    def __init__(self, env, k=4):
+        env.action_space = env.action_spaces[0]
+        env.observation_space = env.observation_spaces[0]
+        env.reward_range = [0., 5.0]
+        env.metadata = {'render.modes': ['rgb_array']}
+        gym.Wrapper.__init__(self, env)
+        self.k = k
+        self.frames = deque([], maxlen=k)
 
+    def reset(self):
+        ob = self.env.reset()
+        return ob
+
+    def step(self, action):
+        ob, reward, done, info = self.env.step(action)
+        return ob, reward, done, info
 
 
 

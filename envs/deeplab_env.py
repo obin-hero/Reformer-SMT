@@ -95,12 +95,14 @@ class DeepmindLabEnv(gym.Env):
         self.episode_id = -1
         self.prev_pose = 0
         self.stuck_flag = 0
+        self.success = 0
 
     def step(self, action):
         if isinstance(action, dict): action = action['action']
         reward = self._lab.step(ACTION_LIST[action], num_steps=4)
         self.time_t += 1
         done = not self._lab.is_running()
+        if reward >= 10.0: self.success = 1.0
         #reward = 5.0 if reward > 0.05 else -0.01
         #reward += -0.01
         if self.time_t >= self._max_step - 1: done = True
@@ -124,7 +126,7 @@ class DeepmindLabEnv(gym.Env):
         self.prev_pose = [pose_x, pose_y]
         self._last_action = action
         obs = {'image': image.transpose(2,1,0), 'pose': np.array([pose_x, pose_y, pose_yaw, self.time_t+1]), 'prev_action': np.eye(self.action_dim)[self._last_action]}
-        return obs, reward, done, {'episode_id': self.episode_id, 'step_id':self.time_t}
+        return obs, reward, done, {'episode_id': self.episode_id, 'step_id':self.time_t, 'success': self.success}
 
 
     def reset(self):
@@ -141,6 +143,7 @@ class DeepmindLabEnv(gym.Env):
         self.episode_id += 1
         self.prev_pose = None
         self.stuck_flag = 0
+        self.success = 0
         return obs
 
     def seed(self, seed = None):

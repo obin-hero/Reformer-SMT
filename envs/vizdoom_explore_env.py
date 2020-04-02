@@ -38,13 +38,21 @@ class MazeExplorerEnv(gym.Env):
         if not os.path.exists('maps') : os.mkdir('maps')
         if not os.path.exists(os.path.join('maps',cfg.saving.version)): os.mkdir(os.path.join('maps',cfg.saving.version))
 
-        self.env = MazeExplorer(unique_maps=True, number_maps=100, keys=6, size=(20,20), random_spawn=True,
-                                 random_textures=True, random_key_positions=True, action_frame_repeat=4,
-                                 actions="MOVE_FORWARD TURN_LEFT TURN_RIGHT MOVE_LEFT MOVE_RIGHT", scaled_resolution=(64, 64),
-                                 data_augmentation=True, seed=seed, episode_timeout=self._max_step*4, complexity=.3, density=.3)
+        self.env_cfg = cfg.task.explorer
+        map_size = self.env_cfg.map_size
+        self.env = MazeExplorer(unique_maps=True, number_maps=self.env_cfg.num_maps, keys=self.env_cfg.num_keys,
+                                size=(map_size,map_size), random_spawn=True, random_textures=True, random_key_positions=True,
+                                action_frame_repeat=4, actions="MOVE_FORWARD TURN_LEFT TURN_RIGHT MOVE_LEFT MOVE_RIGHT",
+                                scaled_resolution=(64, 64), data_augmentation=True, seed=seed, episode_timeout=self._max_step*4,
+                                complexity=.3, density=.3)
 
 
         self.game = self.env.env
+        self.game.close()
+        self.game.set_automap_buffer_enabled(True)
+        self.game.set_depth_buffer_enabled(True)
+        self.game.set_automap_mode(AutomapMode.OBJECTS_WITH_SIZE)
+        self.game.init()
         #self.game.add_game_args("+am_followplayer 1")
         self.ACTION_LIST = np.eye(5).astype(np.bool)
         self.action_space = gym.spaces.Discrete(len(self.ACTION_LIST))
@@ -59,13 +67,14 @@ class MazeExplorerEnv(gym.Env):
         self.episode_id = -1
         self.prev_pose = 0
         self.stuck_flag = 0
-        self.sectors = None
+        self.success_num = 0
         self.total_reward = 0.0
 
     def step(self, action):
         if isinstance(action, dict): action = action['action']
         rgb, reward, done, info = self.env.step(action)
-
+        if reward > 0.5 : self.success_num += 1
+        self.time_t += 1
         if self.time_t >= self._max_step - 1: done = True
         state = self.env.env.get_state()
         obs = None if done else state
@@ -93,7 +102,7 @@ class MazeExplorerEnv(gym.Env):
         obs = {'image': image.transpose(2,1,0), 'pose': np.array([pose_x, pose_y, pose_yaw, self.time_t+1]), 'prev_action': np.eye(self.action_dim)[self._last_action]}
         # for debug
         obs['episode'] = self.episode_id * 6 + self.env.seed
-        return obs, reward, done, {'episode_id': self.episode_id, 'step_id':self.time_t}
+        return obs, reward, done, {'episode_id': self.episode_id, 'step_id':self.time_t, 'success': self.success_num}
 
     def process_image(self, image, resize=True, ch3=False):
         if len(image.shape) > 2:
@@ -122,6 +131,7 @@ class MazeExplorerEnv(gym.Env):
         self.prev_pose = None
         self.stuck_flag = 0
         self.total_reward = 0.0
+        self.success_num =  0
         obs['episode'] = self.episode_id * 6 + self.env.seed
         return obs
 
