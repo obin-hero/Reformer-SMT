@@ -96,15 +96,17 @@ class DeepmindLabEnv(gym.Env):
         self.prev_pose = 0
         self.stuck_flag = 0
         self.success = 0
+        self.total_reward = 0
 
     def step(self, action):
         if isinstance(action, dict): action = action['action']
-        reward = self._lab.step(ACTION_LIST[action], num_steps=4)
+        reward = self._lab.step(ACTION_LIST[action], num_steps=4) * 0.1
         self.time_t += 1
         done = not self._lab.is_running()
-        if reward >= 10.0: self.success = 1.0
-        #reward = 5.0 if reward > 0.05 else -0.01
-        #reward += -0.01
+        self.total_reward += reward
+        if reward >= 1.0: 
+             self.success = 1.0
+             self.done = True
         if self.time_t >= self._max_step - 1: done = True
         #print(self.time_t, self._max_step)
         obs = None if done else self._lab.observations()
@@ -122,7 +124,6 @@ class DeepmindLabEnv(gym.Env):
         if self.stuck_flag > 20 :
             done = True
             self.stuck_flag = 0.0
-        if reward > 5.0: done = True
         self.prev_pose = [pose_x, pose_y]
         self._last_action = action
         obs = {'image': image.transpose(2,1,0), 'pose': np.array([pose_x, pose_y, pose_yaw, self.time_t+1]), 'prev_action': np.eye(self.action_dim)[self._last_action]}
@@ -144,6 +145,7 @@ class DeepmindLabEnv(gym.Env):
         self.prev_pose = None
         self.stuck_flag = 0
         self.success = 0
+        self.total_reward = 0
         return obs
 
     def seed(self, seed = None):
@@ -158,7 +160,10 @@ class DeepmindLabEnv(gym.Env):
             obs = self._lab.observations()[self._colors]
             map = self._lab.observations()['DEBUG.CAMERA_INTERLEAVED.TOP_DOWN']
             view_img = np.concatenate([obs[:,:,:3],map],1)
+            view_img = np.ascontiguousarray(view_img)
             view_img = cv2.resize(view_img, dsize=None, fx=2.0, fy=2.0)
+            #print(view_img.shape)
+            cv2.putText(view_img, 'step %d reward: %.2f'%(self.time_t, self.total_reward), (140, 110), cv2.FONT_HERSHEY_PLAIN, 0.5, (255, 255, 255), 1)
             return view_img
         elif mode == 'human':
             obs = self._lab.observations()[self._colors]
@@ -180,8 +185,8 @@ ACTION_LIST = [
     _action( 20,   0,  0,  0, 0, 0, 0), # look_right 1
     #_action(  0,  10,  0,  0, 0, 0, 0), # look_up
     #_action(  0, -10,  0,  0, 0, 0, 0), # look_down
-    _action(  0,   0, -1,  0, 0, 0, 0), # strafe_left 2
-    _action(  0,   0,  1,  0, 0, 0, 0), # strafe_right 3
+    #_action(  0,   0, -1,  0, 0, 0, 0), # strafe_left 2
+    #_action(  0,   0,  1,  0, 0, 0, 0), # strafe_right 3
     _action(  0,   0,  0,  1, 0, 0, 0), # forward 4
     #_action(  0,   0,  0, -1, 0, 0, 0), # backward 5
     #_action(  0,   0,  0,  0, 1, 0, 0), # fire
@@ -205,12 +210,12 @@ if __name__== '__main__':
             im = env.render('rgb_array')
             cv2.imshow('render', im[:,:,[2,1,0]])
             key = cv2.waitKey(0)
-            if key == ord('a'): action = 2
-            elif key == ord('d'): action = 3
-            elif key == ord('w'): action = 4
+            if key == ord('a') or key == ord('2'): action = 2
+            elif key == ord('d') or key == ord('3'): action = 3
+            elif key == ord('w') or key == ord('4'): action = 4
             elif key == ord('s'): action = 5
-            elif key == ord('j'): action = 0
-            elif key == ord('l'): action = 1
+            elif key == ord('j') or key == ord('0'): action = 0
+            elif key == ord('l') or key == ord('1'): action = 1
             elif key == ord('q'): break
             obs, reward, done, _ = env.step(action)
             print(i, reward)

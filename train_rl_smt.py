@@ -206,6 +206,7 @@ def main(cfg):
     if DEBUG_TIME: prev_time = print_time(prev_time, 'prepare rollouts and env reset')
 
     print('start train with training mode ',training_mode)
+    learning_rate_step = [500, 2000, 5000]
     for epoch in range(start_epoch, num_updates, 1):
         if epoch > cfg.training.pretrain_epoch and training_mode == 'pretrain':
             training_mode = 'train'
@@ -321,8 +322,8 @@ def main(cfg):
             # Save checkpoint
         if epoch % cfg.saving.save_interval == 0 :
             save_network(agent.actor_critic, os.path.join(save_dir, 'ep%06d.pth'%(epoch)))
-
-
+        if epoch in learning_rate_step:
+            agent.scheduler.step()
 
 if __name__=='__main__':
     main(cfg)

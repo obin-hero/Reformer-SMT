@@ -1,3 +1,6 @@
 task:
   env_fn: 'deeplab_make_env_fn'
   deeplab_scene: 'nav_maze_random_goal_01'
+action_dim: 3
+training:
+  lr: 2e-4

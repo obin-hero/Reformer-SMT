@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.optim as optim
+from torch.optim.lr_scheduler import StepLR
 import random
 import time
 class PPOReplay(object):
@@ -48,6 +49,7 @@ class PPOReplay(object):
                                     eps=eps,
                                     weight_decay=weight_decay,
                                     amsgrad=amsgrad)
+        self.scheduler = StepLR(self.optimizer, step_size = 1, gamma = 0.5)
 
         #self.optimizer = optim.Adam([p for n, p in actor_critic.named_parameters() if 'Embedding' not in n]
         self.last_grad_norm = None
@@ -55,7 +57,7 @@ class PPOReplay(object):
 
     def change_optimizer(self,mode='train'):
         if mode == 'train':
-            params_wo_embed_network = [p for n, p in self.actor_critic.named_parameters() if 'embed_image' not in n or 'embed_act' not in n]
+            params_wo_embed_network = [p for n, p in self.actor_critic.named_parameters() if 'embed' not in n]
             self.optimizer = optim.Adam(params_wo_embed_network,
                                         lr=self.lr,
                                         eps=self.eps,

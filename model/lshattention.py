@@ -211,14 +211,15 @@ class LSHAttention(nn.Module):
         # will expend extra computation to return attention matrix
         self._return_attn = return_attn
 
-    def hash_vectors(self, n_buckets, vecs):
+    def hash_vectors(self, n_buckets, vecs): # vector들에게 hash function을 적용한다.
+
         batch_size = vecs.shape[0]
         device = vecs.device
 
         # See https://arxiv.org/pdf/1509.02897.pdf
         # We sample a different random rotation for each round of hashing to
         # decrease the probability of hash misses.
-        assert n_buckets % 2 == 0
+        assert n_buckets % 2 == 0 # hash fucntion  h(x) = argmax([ xR ; -xR]) 이기 때문에 반씩 구해야함.
 
         rot_size = n_buckets
 
@@ -227,11 +228,16 @@ class LSHAttention(nn.Module):
             vecs.shape[-1],
             self.n_hashes if self._rehash_each_round else 1,
             rot_size // 2)
+        # in paper, random matrix R shape is d_k, b/2 + (한꺼번에 n_hash 생성)
+        # 여기서는 한꺼번에 n_hash 생성하기 위해 B, d_k, n, b/2 로 만듦
 
         random_rotations = torch.randn(rotations_shape, dtype=vecs.dtype, device=device).expand(batch_size, -1, -1, -1)
+        #TODO: 왜 이게 random rotation이 되는지 모르겠어. random projection이라면 모를까, 이게 어떻게 unit circle projection이 되는거지???
 
         dropped_vecs = self.dropout_for_hash(vecs)
         rotated_vecs = torch.einsum('btf,bfhi->bhti', dropped_vecs, random_rotations)
+        # batch * T * d_feature X batch * d_feature * n_hashes * hash_dim
+        # ==> batch * n * seqlen * n_hashes * hash_dim
 
         if self._rehash_each_round:
             rotated_vecs = torch.cat([rotated_vecs, -rotated_vecs], dim=-1)
@@ -255,7 +261,7 @@ class LSHAttention(nn.Module):
             h, *_ = buckets.shape
             buckets = torch.reshape(buckets.permute((*_, h)), (-1,))
 
-        return buckets
+        return buckets # shape : B * seqen.. ? wh
 
     def forward(self, qk, v, query_len = None, input_mask = None, input_attn_mask = None):
         batch_size, seqlen, dim = qk.shape
@@ -267,12 +273,12 @@ class LSHAttention(nn.Module):
 
         n_buckets = seqlen // self.bucket_size
 
-        buckets = self.hash_vectors(n_buckets, qk)
+        buckets = self.hash_vectors(n_buckets, qk) # buckets : hashed vectors, hashes
 
         # We use the same vector as both a query and a key.
-        assert int(buckets.shape[1]) == self.n_hashes * seqlen
+        assert int(buckets.shape[1]) == self.n_hashes * seqlen # 각 element마다 n개의 hash를 적용한다.
 
-        if self.add_local_attn_hash:
+        if self.add_local_attn_hash: #TODO what is local attention
             local_buckets = torch.full((batch_size, seqlen), n_buckets, device=device, dtype=torch.long)
             buckets = torch.cat((buckets, local_buckets), dim=1)
 
@@ -280,6 +286,7 @@ class LSHAttention(nn.Module):
 
         ticker = torch.arange(total_hashes * seqlen, device=device).unsqueeze(0).expand_as(buckets)
         buckets_and_t = seqlen * buckets + (ticker % seqlen)
+        #TODO buckets와 seqlen을 왜 또 곱하는가
         buckets_and_t = buckets_and_t.detach()
 
         # Hash-based sort ("s" at the start of variable names means "sorted")
