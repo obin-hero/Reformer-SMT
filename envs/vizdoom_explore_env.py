@@ -35,10 +35,14 @@ class MazeExplorerEnv(gym.Env):
     def __init__(self, cfg, seed=0, **kwargs):
         super(MazeExplorerEnv,self).__init__(**kwargs)
         self._max_step = cfg.training.max_step
+        if not os.path.exists('maps') : os.mkdir('maps')
+        if not os.path.exists(os.path.join('maps',cfg.saving.version)): os.mkdir(os.path.join('maps',cfg.saving.version))
+
         self.env = MazeExplorer(unique_maps=True, number_maps=100, keys=6, size=(20,20), random_spawn=True,
                                  random_textures=True, random_key_positions=True, action_frame_repeat=4,
                                  actions="MOVE_FORWARD TURN_LEFT TURN_RIGHT MOVE_LEFT MOVE_RIGHT", scaled_resolution=(64, 64),
                                  data_augmentation=True, seed=seed, episode_timeout=self._max_step*4, complexity=.3, density=.3)
+
 
         self.game = self.env.env
         #self.game.add_game_args("+am_followplayer 1")
@@ -77,7 +81,7 @@ class MazeExplorerEnv(gym.Env):
             progress = np.sqrt(((pose_x - self.prev_pose[0])**2 + (pose_y - self.prev_pose[1])**2))
         else: progress = 0.0
         #print(pose_x, pose_y, pose_yaw, progress)
-        if progress < 0.02 :
+        if progress < 0.001:
             self.stuck_flag += 1
         else: 
             self.stuck_flag = 0 

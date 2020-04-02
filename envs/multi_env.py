@@ -18,7 +18,7 @@ from typing import (
     Tuple,
     Union,
 )
-
+import cv2
 import numpy as np
 from gym.spaces.dict_space import Dict as SpaceDict
 import gym
@@ -420,9 +420,11 @@ class VectorEnv:
         images = [read_fn() for read_fn in self._connection_read_fns]
         tile = tile_images(images)
         if mode == "human":
-            from habitat.core.utils import try_cv2_import
-
-            cv2 = try_cv2_import()
+            
+            try:
+                from habitat.core.utils import try_cv2_import
+                cv2 = try_cv2_import()
+            except: pass
 
             cv2.imshow("vecenv", tile[:, :, ::-1])
             cv2.waitKey(1)

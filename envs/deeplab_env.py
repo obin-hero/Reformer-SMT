@@ -80,7 +80,7 @@ class DeepmindLabEnv(gym.Env):
         scene = cfg.task.deeplab_scene
         self._colors = colors
         self._lab = deepmind_lab.Lab(scene, [self._colors, 'DEBUG.POS.TRANS', 'DEBUG.POS.ROT', 'DEBUG.CAMERA_INTERLEAVED.TOP_DOWN'],
-                                     dict(fps = str(30), width = str(width), height = str(height)))
+                                     dict(fps = str(60), width = str(width), height = str(height)))
 
         self.action_space = gym.spaces.Discrete(len(ACTION_LIST))
         self.action_dim = self.action_space.n
