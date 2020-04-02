@@ -7,12 +7,17 @@ C.action_dim = 5
 C.pose_dim = 5
 C.is_train = True
 
+C.task = CfgNode()
+C.task.env_fn = 'vizdoom_make_env_fn'
+C.task.deeplab_scene = 'nav_maze_random_goal_01'
+
 C.saving = CfgNode()
 C.saving.version = 'base'
 C.saving.save_dir = '.'
 C.saving.log_interval = 10
 C.saving.vis_interval = 200
 C.saving.save_interval = 500
+#C.saving.eval_interval = 500
 
 C.training = CfgNode()
 C.training.batch_size = 64
@@ -20,10 +25,11 @@ C.training.max_memory_size = 100
 C.training.embedding_size = 128
 C.training.max_step = 500
 C.training.num_envs = 6
+C.training.valid_num_envs = 0
 C.training.gpu = [0]
-C.training.lr = 1e-4
+C.training.lr = 5e-4
 C.training.resume = 'none'
-C.training.pretrain_load = 'pretrain_ep001001.pth'
+C.training.pretrain_load = 'none'
 C.training.pretrain_epoch = 1000
 C.training.pretrain_memory_size = 1
 

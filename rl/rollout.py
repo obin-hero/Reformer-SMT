@@ -142,6 +142,7 @@ class RolloutSensorDictReplayBuffer(object):
 
 
     def feed_forward_generator(self, num_mini_batch, on_policy=True, mode='train'):
+        DEBUG_TIME = True
 
         #print('start feed forward generator')
         #s = time.time()

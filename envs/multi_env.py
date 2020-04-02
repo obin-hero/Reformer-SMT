@@ -18,7 +18,7 @@ from typing import (
     Tuple,
     Union,
 )
-
+import cv2
 import numpy as np
 from gym.spaces.dict_space import Dict as SpaceDict
 import gym
@@ -420,9 +420,11 @@ class VectorEnv:
         images = [read_fn() for read_fn in self._connection_read_fns]
         tile = tile_images(images)
         if mode == "human":
-            from habitat.core.utils import try_cv2_import
-
-            cv2 = try_cv2_import()
+            
+            try:
+                from habitat.core.utils import try_cv2_import
+                cv2 = try_cv2_import()
+            except: pass
 
             cv2.imshow("vecenv", tile[:, :, ::-1])
             cv2.waitKey(1)
@@ -541,7 +543,24 @@ class PreprocessVectorEnv(VectorEnv):
         else:
             return self.buf_obs
 
+from collections import deque
+class MultiWrapper(gym.Wrapper):
+    def __init__(self, env, k=4):
+        env.action_space = env.action_spaces[0]
+        env.observation_space = env.observation_spaces[0]
+        env.reward_range = [0., 5.0]
+        env.metadata = {'render.modes': ['rgb_array']}
+        gym.Wrapper.__init__(self, env)
+        self.k = k
+        self.frames = deque([], maxlen=k)
 
+    def reset(self):
+        ob = self.env.reset()
+        return ob
+
+    def step(self, action):
+        ob, reward, done, info = self.env.step(action)
+        return ob, reward, done, info
 
 
 

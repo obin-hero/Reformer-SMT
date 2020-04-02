@@ -46,7 +46,7 @@ class SceneMemory(nn.Module):
     # B * M (max_memory_size) * E (embedding)
     def __init__(self, cfg) -> None:
         super(SceneMemory, self).__init__()
-        self.B = cfg.training.num_envs
+        self.B = cfg.training.num_envs + cfg.training.valid_num_envs
         self.max_memory_size = cfg.training.max_memory_size
         self.embedding_size = cfg.training.embedding_size
         self.embed_network = Embedding(cfg)

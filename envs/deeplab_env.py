@@ -72,13 +72,12 @@ class DeepLabMultiWrapper(gym.Wrapper):
 
 class DeepmindLabEnv(gym.Env):
     metadata = {'render.modes': ['rgb_array']}
-    def __init__(self, cfg, scene, colors = 'RGBD_INTERLEAVED', width = 64, height = 64, max_step = 512, **kwargs):
+    def __init__(self, cfg, scene='nav_maze_random_goal_01', colors = 'RGBD_INTERLEAVED', width = 64, height = 64, max_step = 512, **kwargs):
         super(DeepmindLabEnv, self).__init__(**kwargs)
 
         #if not scene in LEVELS:
         #    raise Exception('Scene %s not supported' % (scene))
-
-        scene = 'nav_maze_static_01'
+        scene = cfg.task.deeplab_scene
         self._colors = colors
         self._lab = deepmind_lab.Lab(scene, [self._colors, 'DEBUG.POS.TRANS', 'DEBUG.POS.ROT', 'DEBUG.CAMERA_INTERLEAVED.TOP_DOWN'],
                                      dict(fps = str(60), width = str(width), height = str(height)))
@@ -96,16 +95,17 @@ class DeepmindLabEnv(gym.Env):
         self.episode_id = -1
         self.prev_pose = 0
         self.stuck_flag = 0
+        self.success = 0
 
     def step(self, action):
         if isinstance(action, dict): action = action['action']
         reward = self._lab.step(ACTION_LIST[action], num_steps=4)
         self.time_t += 1
         done = not self._lab.is_running()
+        if reward >= 10.0: self.success = 1.0
         #reward = 5.0 if reward > 0.05 else -0.01
         #reward += -0.01
-        if self.time_t >= self._max_step - 1:
-            done = True
+        if self.time_t >= self._max_step - 1: done = True
         #print(self.time_t, self._max_step)
         obs = None if done else self._lab.observations()
         self._last_observation = obs if obs is not None else self._last_observation
@@ -122,10 +122,11 @@ class DeepmindLabEnv(gym.Env):
         if self.stuck_flag > 20 :
             done = True
             self.stuck_flag = 0.0
+        if reward > 5.0: done = True
         self.prev_pose = [pose_x, pose_y]
         self._last_action = action
         obs = {'image': image.transpose(2,1,0), 'pose': np.array([pose_x, pose_y, pose_yaw, self.time_t+1]), 'prev_action': np.eye(self.action_dim)[self._last_action]}
-        return obs, reward, done, {'episode_id': self.episode_id, 'step_id':self.time_t}
+        return obs, reward, done, {'episode_id': self.episode_id, 'step_id':self.time_t, 'success': self.success}
 
 
     def reset(self):
@@ -142,6 +143,7 @@ class DeepmindLabEnv(gym.Env):
         self.episode_id += 1
         self.prev_pose = None
         self.stuck_flag = 0
+        self.success = 0
         return obs
 
     def seed(self, seed = None):
@@ -178,16 +180,17 @@ ACTION_LIST = [
     _action( 20,   0,  0,  0, 0, 0, 0), # look_right 1
     #_action(  0,  10,  0,  0, 0, 0, 0), # look_up
     #_action(  0, -10,  0,  0, 0, 0, 0), # look_down
-    #_action(  0,   0, -1,  0, 0, 0, 0), # strafe_left 2
-    #_action(  0,   0,  1,  0, 0, 0, 0), # strafe_right 3
+    _action(  0,   0, -1,  0, 0, 0, 0), # strafe_left 2
+    _action(  0,   0,  1,  0, 0, 0, 0), # strafe_right 3
     _action(  0,   0,  0,  1, 0, 0, 0), # forward 4
-    _action(  0,   0,  0, -1, 0, 0, 0), # backward 5
+    #_action(  0,   0,  0, -1, 0, 0, 0), # backward 5
     #_action(  0,   0,  0,  0, 1, 0, 0), # fire
     #_action(  0,   0,  0,  0, 0, 1, 0), # jump
     #_action(  0,   0,  0,  0, 0, 0, 1)  # crouch
 ]
 
 if __name__== '__main__':
+    from configs.default_cfg import get_config
     run_mode = 'play'
     if run_mode == 'auto':
         env = DeepmindLabEnv('nav_maze_static_01')
@@ -196,9 +199,9 @@ if __name__== '__main__':
             obs, *_= env.step(env.action_space.sample())
             env.render('human')
     elif run_mode == 'play':
-        env = DeepmindLabEnv('nav_maze_static_01', width=256, height=256)
+        env = DeepmindLabEnv(get_config(),'nav_maze_static_01', width=256, height=256)
         env.reset()
-        for i in range(1000):
+        for i in range(10002):
             im = env.render('rgb_array')
             cv2.imshow('render', im[:,:,[2,1,0]])
             key = cv2.waitKey(0)
@@ -210,5 +213,6 @@ if __name__== '__main__':
             elif key == ord('l'): action = 1
             elif key == ord('q'): break
             obs, reward, done, _ = env.step(action)
-            print(reward)
+            print(i, reward)
+            #if done: break
 

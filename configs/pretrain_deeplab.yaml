@@ -1,0 +1,3 @@
+task:
+  env_fn: 'deeplab_make_env_fn'
+  deeplab_scene: 'nav_maze_static_01'

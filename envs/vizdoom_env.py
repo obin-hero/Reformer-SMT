@@ -119,8 +119,8 @@ class VizDoomEnv(gym.Env):
         reward = self.game.make_action(self.ACTION_LIST[action].tolist(),5)
         self.time_t += 1
         done = (self.game.is_episode_finished())
-        #print(reward
-        reward = 10.0 if reward > 0.05 else -0.01
+        success = reward > 0.05
+        reward = 10.0 if success else -0.01
         if self.time_t >= self._max_step - 1: done = True
         state = self.game.get_state()
         obs = None if done else state
@@ -149,7 +149,7 @@ class VizDoomEnv(gym.Env):
         obs = {'image': image.transpose(2,1,0), 'pose': np.array([pose_x, pose_y, pose_yaw, self.time_t+1]), 'prev_action': np.eye(self.action_dim)[self._last_action]}
         # for debug
         obs['episode'] = self.episode_id * 6 + self.seed
-        return obs, reward, done, {'episode_id': self.episode_id, 'step_id':self.time_t}
+        return obs, reward, done, {'episode_id': self.episode_id, 'step_id':self.time_t, 'success':success}
 
     def process_image(self, image, resize=True, ch3=False):
         if len(image.shape) > 2:
