@@ -90,7 +90,7 @@ class MazeExplorerEnv(gym.Env):
             progress = np.sqrt(((pose_x - self.prev_pose[0])**2 + (pose_y - self.prev_pose[1])**2))
         else: progress = 0.0
         #print(pose_x, pose_y, pose_yaw, progress)
-        if progress < 0.001:
+        if progress < 0.01:
             self.stuck_flag += 1
         else: 
             self.stuck_flag = 0 

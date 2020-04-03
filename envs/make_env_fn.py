@@ -47,7 +47,9 @@ def vizdoom_make_env_fn(cfg, rank,
     return env
 
 try: from envs.vizdoom_explore_env import MazeExplorerEnv
-except: print("can't use maze explorer")
+except:
+    raise
+    print("can't use maze explorer")
 def explorer_make_env_fn(cfg, rank,
                 log_dir,
                 visdom_name = 'main',

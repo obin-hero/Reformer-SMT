@@ -10,6 +10,10 @@ C.is_train = True
 C.task = CfgNode()
 C.task.env_fn = 'vizdoom_make_env_fn'
 C.task.deeplab_scene = 'nav_maze_random_goal_01'
+C.task.explorer = CfgNode()
+C.task.explorer.num_keys=6
+C.task.explorer.map_size=20
+C.task.explorer.num_maps=100
 
 C.saving = CfgNode()
 C.saving.version = 'base'
