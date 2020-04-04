@@ -40,7 +40,7 @@ class MazeExplorerEnv(gym.Env):
 
         self.env_cfg = cfg.task.explorer
         map_size = self.env_cfg.map_size
-        self.env = MazeExplorer(unique_maps=True, number_maps=self.env_cfg.num_maps, keys=self.env_cfg.num_keys,
+        self.env = MazeExplorer(unique_maps=False, number_maps=self.env_cfg.num_maps, keys=self.env_cfg.num_keys,
                                 size=(map_size,map_size), random_spawn=True, random_textures=True, random_key_positions=True,
                                 action_frame_repeat=4, actions="MOVE_FORWARD TURN_LEFT TURN_RIGHT MOVE_LEFT MOVE_RIGHT",
                                 scaled_resolution=(64, 64), data_augmentation=True, seed=seed, episode_timeout=self._max_step*4,
@@ -118,6 +118,12 @@ class MazeExplorerEnv(gym.Env):
 
     def reset(self):
         _ = self.env.reset()
+        if not self.game.is_automap_buffer_enabled():
+            self.game.close()
+            self.game.set_automap_buffer_enabled(True)
+            self.game.set_depth_buffer_enabled(True)
+            self.game.set_automap_mode(AutomapMode.OBJECTS_WITH_SIZE)
+            self.game.init()
         state = self.game.get_state()
         self._last_observation = state
         self.time_t = -1
@@ -153,29 +159,28 @@ class MazeExplorerEnv(gym.Env):
             #view_img = cv2.resize(view_img, dsize=None, fx=2.0, fy=2.0)
             return view_img
         elif mode == 'human':
-            obs = self.process_image(state.screen_buffer, resize=False)
+            obs = self.process_image(self.env._rgb_array, resize=False)
             map = state.automap_buffer.transpose(1,2,0)
-            view_img = np.concatenate([obs[:,:,:3],map],1)
+            view_img = np.concatenate([obs[:,:,:3], map],1).astype(np.uint8)
             view_img = np.ascontiguousarray(view_img)
-            cv2.putText(view_img, 'reward: %.3f'%(self.total_reward), (400, 150), cv2.FONT_HERSHEY_PLAIN, 0.5, (255, 255, 255), 1)
-            discovered = str(np.where(self.sectors)[0].tolist())
-            cv2.putText(view_img, discovered, (400, 170), cv2.FONT_HERSHEY_PLAIN, 0.5, (255, 255, 255), 1)
-            return view_img
-            #cv2.imshow('render', view_img[:,:,[2,1,0]])
-            #cv2.waitKey(0)
+            cv2.putText(view_img, 'reward: %.3f'%(self.total_reward), (200, 80), cv2.FONT_HERSHEY_PLAIN, 0.5, (255, 255, 255), 1)
+            #return view_img
+            cv2.imshow('render', view_img[:,:,[2,1,0]])
+            cv2.waitKey(1)
             #pop up a window and render
         else:
             super(MazeExplorerEnv, self).render(mode=mode) # just raise an exception
 
 if __name__== '__main__':
-    run_mode = 'play'
+    run_mode = 'auto'
     from configs.default_cfg import get_config
     if run_mode == 'auto':
         env = MazeExplorerEnv(get_config())
-        env.reset()
-        for i in range(100):
-            obs, *_= env.step(env.action_space.sample())
-            env.render('human')
+        for j in range(300):
+            env.reset()
+            for i in range(30):
+                obs, *_= env.step(env.action_space.sample())
+                env.render('human')
     elif run_mode == 'play':
         env = MazeExplorerEnv(get_config())
         env.reset()

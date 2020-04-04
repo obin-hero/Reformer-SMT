@@ -13,7 +13,7 @@ C.task.deeplab_scene = 'nav_maze_random_goal_01'
 C.task.explorer = CfgNode()
 C.task.explorer.num_keys=6
 C.task.explorer.map_size=20
-C.task.explorer.num_maps=100
+C.task.explorer.num_maps=1000
 
 C.saving = CfgNode()
 C.saving.version = 'base'

@@ -141,7 +141,8 @@ class MazeExplorer(VizDoom):
             return super().reset()
         else:
             self.current_map += 1
-            if self.current_map > self.number_maps:
+            #print(self.current_map)
+            if self.current_map >= self.number_maps:
                 print("Generating new maps")
 
                 if self.seed is not None:
