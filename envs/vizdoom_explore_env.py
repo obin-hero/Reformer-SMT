@@ -44,7 +44,7 @@ class MazeExplorerEnv(gym.Env):
                                 size=(map_size,map_size), random_spawn=True, random_textures=True, random_key_positions=True,
                                 action_frame_repeat=4, actions="MOVE_FORWARD TURN_LEFT TURN_RIGHT MOVE_LEFT MOVE_RIGHT",
                                 scaled_resolution=(64, 64), data_augmentation=True, seed=seed, episode_timeout=self._max_step*4,
-                                complexity=.3, density=.3)
+                                complexity=.3, density=.3, mazes_path='envs/maps/map_v1_%d'%seed)
 
 
         self.game = self.env.env

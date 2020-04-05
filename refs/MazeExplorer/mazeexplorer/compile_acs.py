@@ -9,8 +9,10 @@ dir_path = os.path.dirname(os.path.realpath(__file__))
 
 
 def compile_acs(mazes_path):
-    os.makedirs(os.path.join(mazes_path, "outputs", "sources"))
-    os.makedirs(os.path.join(mazes_path, "outputs", "images"))
+    if not os.path.exists(os.path.join(mazes_path, "outputs", "sources")):
+        os.makedirs(os.path.join(mazes_path, "outputs", "sources"))
+    if not os.path.exists(os.path.join(mazes_path, "outputs", "images")):
+        os.makedirs(os.path.join(mazes_path, "outputs", "images"))
 
     acc_path = os.path.join(dir_path, "acc/acc")
 

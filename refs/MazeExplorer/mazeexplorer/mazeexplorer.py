@@ -119,11 +119,12 @@ class MazeExplorer(VizDoom):
             generate_wads(self.mazes_path + "/" + str(self.size[0]) + "x" + str(self.size[1]),
                           self.mazes_path + "/" + str(self.size[0]) + "x" + str(self.size[1]) + ".wad",
                           outputs + "maze.o")
-        except FileNotFoundError as e:
-            raise FileNotFoundError(e.strerror + "\n"
-                                                 "Have you pulled the required submodules?\n"
-                                                 "If not, use the line:\n\n\t"
-                                                 "git submodule update --init --recursive")
+        except: raise
+        #except FileNotFoundError as e:
+        #    raise FileNotFoundError(e.strerror + "\n"
+        #                                         "Have you pulled the required submodules?\n"
+        #                                         "If not, use the line:\n\n\t"
+        #                                         "git submodule update --init --recursive")
         cfg = write_config(self.mazes_path + "/" + str(self.size[0]) + "x" + str(self.size[1]),
                            self.actions, episode_timeout=self.episode_timeout)
 

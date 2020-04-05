@@ -102,9 +102,10 @@ def generate_wads(prefix, wad, behavior, BLOCK_SIZE=96, script=None):
     for map_index, file_name in enumerate(
             glob.glob('{}_*.txt'.format(prefix))):
         with open(file_name) as maze_source:
-            maze = [line.strip() for line in maze_source.readlines()]
-            maze = [line for line in maze if line]
-
+            maze_ = [line.strip() for line in maze_source.readlines()]
+            maze = [line for line in maze_ if line]
+        if len(maze) == 0 :
+            print(maze)
         new_map = MapEditor()
         new_map.Linedef = ZLinedef
         new_map.Thing = ZThing
