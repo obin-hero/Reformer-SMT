@@ -19,28 +19,26 @@ class Embedding(nn.Module):
         # 'rgb', 'depth', 'pose'
         assert len(cfg.network.inputs) > 0
         self.inputs = cfg.network.inputs
+        self.action_dim = cfg.action_dim
+        self.embed_image = resnet18(first_ch=3*cfg.network.num_stack, num_classes=256)
+        self.embed_act = nn.Linear(self.action_dim,16)
 
-        if 'image' in self.inputs:
-            self.use_image = True
-            self.embed_image = resnet18(first_ch=4*cfg.network.num_stack, num_classes=64).cuda()
-        else: self.use_image = False
+        final_ch = 256 + 16
+        self.final_embed = nn.Sequential(nn.Linear(final_ch, 256),
+                                         nn.ReLU(),
+                                         nn.Linear(256, 128))
 
-        if 'prev_action' in self.inputs:
-            self.use_action = True
-            self.action_dim = cfg.action_dim
-            self.embed_act = nn.Linear(self.action_dim,16).cuda()
-        else: self.use_action = False
-
-        if 'pose' in self.inputs:
-            self.use_pose = True
-            # p = (x/lambda, y/lambda, cos(th), sin(th), exp(-t))
-            self.pose_dim = cfg.pose_dim
-            self.embed_pose = nn.Linear(self.pose_dim,16).cuda()
-        else: self.use_pose = False
-
-        final_ch = 64 * (self.use_image) + 16 * (self.use_action + self.use_pose)
-        self.final_embed = nn.Linear(final_ch, 128).cuda()
-
+    def forward(self, imgs, acts, masks):
+        length = masks.sum(dim=1)
+        max_length = int(length.max())
+        embeddings = []
+        for i in range(max_length):
+            img_embedding = self.embed_image(imgs[:,i])
+            act_embedding = self.embed_act(acts[:,i])
+            embeds = self.final_embed(torch.cat((img_embedding, act_embedding),1))
+            embeddings.append(embeds)
+        embeddings = torch.stack((embeddings),1)
+        return embeddings
 
 class SceneMemory(nn.Module):
     # B * M (max_memory_size) * E (embedding)
@@ -129,7 +127,6 @@ class SceneMemory(nn.Module):
         #images, poses, prev_actions = images.squeeze(1), poses.squeeze(1), prev_actions.squeeze(1)
 
         relative_pose = self.get_relative_poses(poses[:, 0], poses)
-
         L = images.shape[1]
         embedded_memory = []
         for l in range(L):

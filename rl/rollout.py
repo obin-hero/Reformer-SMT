@@ -30,8 +30,10 @@ class RolloutSensorDictReplayBuffer(object):
         obs_dict = {}
         for k, ob_shape in obs_shape.items():
             if k == 'image':
-                obs_dict[k] = torch.zeros(max_episode_size, 500, *ob_shape,dtype=torch.uint8)
-            else: obs_dict[k] = torch.zeros(max_episode_size, 500, *ob_shape)
+                obs_dict[k] = torch.zeros(max_episode_size, 50, *ob_shape, dtype=torch.uint8)
+            elif k == 'demo_im':
+                obs_dict[k] = torch.zeros(max_episode_size, *ob_shape, dtype=torch.uint8)
+            else: obs_dict[k] = torch.zeros(max_episode_size, 50, *ob_shape)
         self.observations = SensorDict(obs_dict)
         self.poses = torch.zeros(max_episode_size, max_episode_step_size, 4, requires_grad=False)
         self.states = torch.zeros(max_episode_size, max_episode_step_size, self.state_size, requires_grad=False)
@@ -104,27 +106,17 @@ class RolloutSensorDictReplayBuffer(object):
                            self.value_preds[ep_id, step].copy_,
                            self.rewards[ep_id, step].copy_,
                            self.masks[ep_id_, next_step].copy_])
+            for k in self.observations:
+                if 'demo' in k:
+                    modules.append(self.observations[k][ep_id_].copy_)
+                else:
+                    modules.append(self.observations[k][ep_id_, next_step].copy_ )
             inputs.extend([state[p_num], action[p_num], action_log_prob[p_num], value_pred[p_num], reward[p_num], mask[p_num]])
+            inputs.extend([(current_obs[k].peek()[p_num],) for k in self.observations])
             self.curr_episodes[ep_id] = True
             self.curr_steps[ep_id] = step
             #self.for_debug[ep_id, step] = step
-
-            if mode == 'train':
-                poses, pred_embedding = current_obs
-                modules.extend([self.poses[ep_id, step].copy_, self.pre_embeddings[ep_id, step].copy_])
-                #modules.extend([self.poses[ep_id_, next_step].copy_, self.pre_embeddings[ep_id_, next_step].copy_])
-                inputs.extend([poses[p_num], pred_embedding[p_num]])
-
         nn.parallel.parallel_apply(modules, inputs)
-        if mode == 'pretrain':
-            for p_num in range(self.num_processes):
-                ep_id, step = (episodes[p_num]*self.num_processes + p_num)%self.max_episode_size, steps[p_num]
-                next_step = (step + 1) % self.max_episode_step_size
-                ep_id_ = ((episodes[p_num] + 1) * self.num_processes + p_num)%self.max_episode_size if mask[p_num] == 0 else ep_id
-                if ep_id != ep_id_ : next_step = 0
-                modules = ([self.observations[k][ep_id_, next_step].copy_ for k in self.observations])
-                inputs = tuple([(current_obs[k].peek()[p_num],) for k in self.observations])
-                nn.parallel.parallel_apply(modules, inputs)
         self.curr_envs_episodes = np.maximum(np.array(episodes), self.curr_envs_episodes)
 
 
@@ -182,6 +174,8 @@ class RolloutSensorDictReplayBuffer(object):
         observations_sample = SensorDict(
             {k: torch.zeros(self.num_steps + 1, *ob_shape) for k, ob_shape in
              self.obs_shape.items()}).apply(lambda k, v: v.cuda())
+        obs_dict = {k: torch.zeros(self.num_steps + 1, *ob_shape) for k, ob_shape in  self.obs_shape.items() if not 'demo' in k}
+        obs_dict.update({k: torch.zeros()})
         states_sample = torch.zeros(self.num_steps + 1, self.state_size).cuda()
         embeddings_sample = torch.zeros(self.num_steps + 1, self.agent_memory_size, self.pre_embedding_size).cuda()
         poses_sample = torch.zeros(self.num_steps+1, self.agent_memory_size, 4).cuda()

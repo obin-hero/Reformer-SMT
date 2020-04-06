@@ -1,4 +1,4 @@
-import utils.mapper.habitat_maps as maps
+import envs.habitat_utils.mapper.habitat_maps as maps
 from habitat_sim import Simulator
 import habitat_sim.bindings as hsim
 from typing import Any, Dict, List, Optional, Type, Union

@@ -1,2 +1,0 @@
-task:
-  env_fn: 'explorer_make_env_fn'

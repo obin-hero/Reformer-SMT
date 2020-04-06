@@ -1,2 +1,0 @@
-task:
-  env_fn: 'vizdoom_make_env_fn'

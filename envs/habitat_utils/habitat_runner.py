@@ -8,8 +8,8 @@ import habitat_sim.agent
 import habitat_sim.bindings as hsim
 import habitat_sim.utils as utils
 import quaternion as q
-from utils.habitat_settings import default_sim_settings, make_cfg
-from utils.mapper.TopDownMap import TopDownMap
+from envs.habitat_utils.habitat_settings import default_sim_settings, make_cfg
+from envs.habitat_utils.mapper.TopDownMap import TopDownMap
 
 class DemoRunner:
     def __init__(self, settings=None):
@@ -54,9 +54,9 @@ class DemoRunner:
         action_names = list(self._cfg.agents[self._sim_settings["default_agent"]].action_space.keys())
         action = action_names[in_action]
         observations = self._sim.step(action)
-        color_obs = observations["color_sensor"]
-        color_img = Image.fromarray(color_obs, mode="RGBA").convert("RGB")
-        current_position = self._sim.agents[0].get_state().position
+        rgb_array = observations["color_sensor"][:,:,:3]
+        self.curr_state = self._sim.agents[0].get_state()
+        current_position = self.curr_state.position
         # self.dist_to_goal = np.linalg.norm(current_position - self.end_position)
         self.dist_to_goal = self.euclidean_distance(current_position, self.end_position)
         self.agent_episode_distance += self.euclidean_distance(current_position, self.previous_position)
@@ -65,7 +65,7 @@ class DemoRunner:
             done = True
         self.previous_position = current_position
         self.top_down_map.update_metric()
-        return np.asarray(color_img), done
+        return rgb_array, done
 
     def get_observations(self):
         return self._sim.get_sensor_observations()
@@ -74,7 +74,7 @@ class DemoRunner:
         return self._sim.agents[0].get_state().position
 
     def init_episode(self, scene, init_position, init_rotation, end_position, end_rotation, orig_start_pose = None):
-        self.scene = "data/scene_datasets/mp3d/{}/{}.glb".format(scene[0],scene[0])
+        self.scene = "data/scene_datasets/mp3d/{}/{}.glb".format(scene,scene)
         self.init_position = init_position
         self.init_rotation = init_rotation
         self.end_position = end_position
@@ -101,6 +101,7 @@ class DemoRunner:
         self.top_down_map.reset_metric(start_pose = start_state.position, goal_pose=self.end_position, orig_start_pose = self.orig_start_pose)
         self.previous_position = start_state.position
         self.agent_episode_distance = 0
+        self.curr_state = start_state
 
         return start_state, obs['color_sensor']
 
@@ -115,7 +116,7 @@ if __name__ == '__main__':
     action_num = len(runner._cfg.agents[runner._sim_settings["default_agent"]].action_space)
     end_position = runner._sim.pathfinder.get_random_navigable_point()
     state = runner._sim.agents[0].get_state()
-    runner.init_episode(runner.scene, state.position, state.rotation.components, end_position, state.rotation.components)
+    runner.init_episode('1LXtFkjw3qL', state.position, state.rotation.components, end_position, state.rotation.components)
     runner.init_common()
     for i in range(100):
         rand_action = np.random.randint(action_num)

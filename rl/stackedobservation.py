@@ -107,7 +107,7 @@ class StackedTensorStorage(object):
         self.obs[:, -self.env_shape_dim0:] = obs
 
     def clear_done(self, mask_out_done):
-        if self.obs.dim() == 4:
+        if self.obs.dim() >= 3:
             # self.obs *= mask_out_done.unsqueeze(2).unsqueeze(2)
             self.obs[(mask_out_done < 0.5)[:, 0]] = 0.0
         else:
