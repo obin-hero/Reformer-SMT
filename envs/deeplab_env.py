@@ -12,42 +12,6 @@ from collections import deque
 LEVELS = ['lt_chasm', 'lt_hallway_slope', 'lt_horseshoe_color', 'lt_space_bounce_hard', \
           'nav_maze_random_goal_01', 'nav_maze_random_goal_02', 'nav_maze_random_goal_03', 'nav_maze_static_01', \
           'nav_maze_static_02', 'seekavoid_arena_01', 'stairway_to_melon']
-
-class LazyFrames(object):
-    def __init__(self, frames):
-        """This object ensures that common frames between the observations are only stored once.
-        It exists purely to optimize memory usage which can be huge for DQN's 1M frames replay
-        buffers.
-        This object should only be converted to numpy array before being passed to the model.
-        You'd not believe how complex the previous solution was."""
-        self._frames = frames
-        self._out = None
-
-    def _force(self):
-        if self._out is None:
-            self._out = np.concatenate(self._frames, axis=-1)
-            self._frames = None
-        return self._out
-
-    def __array__(self, dtype=None):
-        out = self._force()
-        if dtype is not None:
-            out = out.astype(dtype)
-        return out
-
-    def __len__(self):
-        return len(self._force())
-
-    def __getitem__(self, i):
-        return self._force()[i]
-
-    def count(self):
-        frames = self._force()
-        return frames.shape[frames.ndim - 1]
-
-    def frame(self, i):
-        return self._force()[..., i]
-
 import time
 def print_time(log, start):
     print(log, time.time() - start)
@@ -106,7 +70,7 @@ class DeepmindLabEnv(gym.Env):
         self.total_reward += reward
         if reward >= 1.0: 
              self.success = 1.0
-             self.done = True
+             done = True
         if self.time_t >= self._max_step - 1: done = True
         #print(self.time_t, self._max_step)
         obs = None if done else self._lab.observations()
@@ -169,7 +133,10 @@ class DeepmindLabEnv(gym.Env):
             obs = self._lab.observations()[self._colors]
             map = self._lab.observations()['DEBUG.CAMERA_INTERLEAVED.TOP_DOWN']
             view_img = np.concatenate([obs[:,:,:3],map],1)
+            view_img = np.ascontiguousarray(view_img)
             view_img = cv2.resize(view_img, dsize=None, fx=2.0, fy=2.0)
+            cv2.putText(view_img, 'step %d reward: %.2f' % (self.time_t, self.total_reward), (140, 110),
+                        cv2.FONT_HERSHEY_PLAIN, 0.5, (255, 255, 255), 1)
             return view_img
             #cv2.imshow('render', view_img[:,:,[2,1,0]])
             #cv2.waitKey(0)

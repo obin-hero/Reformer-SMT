@@ -231,7 +231,7 @@ def main(cfg):
 
             cpu_actions = list(action.squeeze(1).cpu().numpy())
             obs, reward, done, info = envs.step(cpu_actions)
-            #envs.render('human')
+            envs.render('human')
             reward = torch.from_numpy(np.expand_dims(np.stack(reward), 1)).float()
 
 
