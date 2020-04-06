@@ -24,16 +24,16 @@ C.dataset.sparsify_demo = 1
 
 
 C.saving = CfgNode()
-C.saving.version = 'base'
+C.saving.version = 'base2'
 C.saving.save_dir = '.'
-C.saving.log_interval = 10
+C.saving.log_interval = 100
 C.saving.vis_interval = 200
-C.saving.save_interval = 500
-C.saving.eval_interval = 100
+C.saving.save_interval = 1000
+C.saving.eval_interval = 1000
 C.saving.eval_iter = 100
 
 C.training = CfgNode()
-C.training.batch_size = 16
+C.training.batch_size = 32
 C.training.max_memory_size = 100
 C.training.embedding_size = 128
 C.training.max_step = 50

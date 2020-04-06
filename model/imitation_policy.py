@@ -6,7 +6,7 @@ import cv2
 import imageio
 from ob_utils import visualize_tensor
 from envs.habitat_utils.habitat_runner import DemoRunner
-
+import quaternion as q
 def init(module, weight_init, bias_init, gain=1):
     weight_init(module.weight.data, gain=gain)
     bias_init(module.bias.data)
@@ -76,7 +76,8 @@ class ImitationPolicy(nn.Module):
             results.update({'demo_im': demo_im, 'follow_im': follow_im})
 
         return results, loss_dict
-
+    def save(self, file_name):
+        torch.save(self.state_dict(),file_name)
     def process_img(self, img, name, info=None):
         numpy_img = np.clip(cv2.resize(img, dsize=(256, 256)) * 255, 0, 255).astype(np.uint8)
         cv2.putText(numpy_img, name, (20, 20), cv2.FONT_HERSHEY_PLAIN, 1.5, (255, 255, 255), 2)
@@ -99,7 +100,8 @@ class ImitationPolicy(nn.Module):
             T = len(pred_acts)
             for t in range(T):
                 if gt_acts is not None and gt_acts[t][idx] == -100: break
-                curr_im = visualize_tensor(follower_im[idx, t] * 0.5 + 0.5, method='array')
+                if isinstance(follower_im[idx,t], np.ndarray): curr_im = follower_im[idx,t] * 0.5 + 0.5
+                else: curr_im = visualize_tensor(follower_im[idx, t] * 0.5 + 0.5, method='array')
                 numpy_img = self.process_img(curr_im, 'step: %02d' % t)
                 if t < 30:
                     demo_reverse_im = visualize_tensor(demo_im[idx,29-t]*0.5 + 0.5, method='array')
@@ -145,10 +147,12 @@ class ImitationPolicy(nn.Module):
         B = demo_im.shape[0]
         # set episode
         demo_pose_ = demo_pose.detach().cpu().numpy()
-        start_pose, start_rotate = demo_pose_[0, 0, :3], demo_pose_[0, 0, 3:]
-        end_pose, end_rotate = demo_pose_[0, -1, :3], demo_pose_[0, -1, 3:]
-
-        self.runner.init_episode(scene[0], start_pose, start_rotate, end_pose, end_rotate)
+        start_pose, start_rotate = demo_pose_[0, -1, :3], demo_pose_[0, -1, 3:]
+        end_pose, end_rotate = demo_pose_[0, 0, :3], demo_pose_[0, 0, 3:]
+        look_back = q.as_rotation_vector(q.from_float_array(start_rotate))
+        look_back[1] += np.pi
+        look_back_quat = q.as_float_array(q.from_rotation_vector(look_back))
+        self.runner.init_episode(scene[0], start_pose, look_back_quat, end_pose, end_rotate)
         start_state, obs_img = self.runner.init_common()
         map = self.runner.get_map()
         obs_img = cv2.resize(obs_img[:, :, :3], (self.img_size, self.img_size))

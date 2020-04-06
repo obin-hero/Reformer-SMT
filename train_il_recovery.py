@@ -2,7 +2,7 @@ import os
 import argparse
 
 parser = argparse.ArgumentParser(description='Path Follow Agent with Transformer')
-parser.add_argument('--data_dir', default='../recovery_dataset/train', type=str)
+parser.add_argument('--data_dir', default='/media/obin/5d368da0-d601-490b-b5d8-6122946470b8/DATA/habitat_nav_data_processed/train', type=str)
 #parser.add_argument('--data_dir', default='/disk1/obin/habitat_nav_data_processed/train', type=str)
 parser.add_argument('--eval_mode', default='simulator', type=str)
 parser.add_argument('--resume', default='none', type=str)
@@ -147,8 +147,7 @@ def main(cfg):
                     "==> validation time = %.2fm, step %d, success_rate: %.4f, spl: %.4f, progress_loss: %.4f"%
                     ((time.time() - eval_start) // 60, step + 1, success_rate_avg, spl_avg, progress_loss_avg))
                 writer.add_scalars('validation', {'success_rate': success_rate_avg,
-                                                'action': spl_avg,
-                                                'progress': progress_loss_avg}, step)
+                                                'spl': spl_avg}, step)
                 agent.visualize_results(eval_results,
                                           file_name=os.path.join(IMAGE_DIR, 'eval_epoch%04diter%05d' % (epoch, step)),
                                           vis_num=1)
