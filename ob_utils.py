@@ -3,6 +3,10 @@ import numpy as np
 import cv2
 #def dict_list_to_list_dict():
 
+import time
+def time_debug(prev_time, log):
+    print("[TIME] ", log, " %.3f"%(time.time() - prev_timme))
+
 def visualize_tensor(tensor, method = 'plt'):
     # assume tensor shape B * C * H * W
     new_tensor = tensor.detach()

@@ -179,19 +179,19 @@ class RolloutSensorDictReplayBuffer(object):
                 step_indices.extend([[int(saved_ep_inds[ep_index]), i] for i in range(step)])
                 ep_index = (ep_index - 1)%len(saved_ep_inds)
 
+
         observations_sample = SensorDict(
-            {k: torch.zeros(self.num_steps + 1, *ob_shape) for k, ob_shape in
-             self.obs_shape.items()}).apply(lambda k, v: v.cuda())
-        states_sample = torch.zeros(self.num_steps + 1, self.state_size).cuda()
-        embeddings_sample = torch.zeros(self.num_steps + 1, self.agent_memory_size, self.pre_embedding_size).cuda()
-        poses_sample = torch.zeros(self.num_steps+1, self.agent_memory_size, 4).cuda()
-        rewards_sample = torch.zeros(self.num_steps, 1).cuda()
-        values_sample = torch.zeros(self.num_steps + 1, 1).cuda()
-        returns_sample = torch.zeros(self.num_steps + 1, 1).cuda()
-        action_log_probs_sample = torch.zeros(self.num_steps, 1).cuda()
-        actions_sample = torch.zeros(self.num_steps, 1).cuda()
-        masks_sample = torch.ones(self.num_steps + 1, 1).cuda()
-        memory_masks_sample = torch.zeros(self.num_steps+1, self.agent_memory_size).cuda()
+            {k: torch.zeros(self.num_steps + 1, *ob_shape) for k, ob_shape in self.obs_shape.items()})#.apply(lambda k, v: v.cuda())
+        states_sample = torch.zeros(self.num_steps + 1, self.state_size)#.cuda()
+        embeddings_sample = torch.zeros(self.num_steps + 1, self.agent_memory_size, self.pre_embedding_size)#.cuda()
+        poses_sample = torch.zeros(self.num_steps+1, self.agent_memory_size, 4)#.cuda()
+        rewards_sample = torch.zeros(self.num_steps, 1)#.cuda()
+        values_sample = torch.zeros(self.num_steps + 1, 1)#.cuda()
+        returns_sample = torch.zeros(self.num_steps + 1, 1)#.cuda()
+        action_log_probs_sample = torch.zeros(self.num_steps, 1)#.cuda()
+        actions_sample = torch.zeros(self.num_steps, 1)#.cuda()
+        masks_sample = torch.ones(self.num_steps + 1, 1)#.cuda()
+        memory_masks_sample = torch.zeros(self.num_steps+1, self.agent_memory_size)#.cuda()
         #debug_sample = torch.zeros(self.num_steps, self.agent_memory_size, 1).cuda()
 
         # Fill the buffers and get values
@@ -210,23 +210,35 @@ class RolloutSensorDictReplayBuffer(object):
             #print('ep {} step {} memory_size {}'.format(sample_ep, sample_step, memory_size+1))
             if mode == 'pretrain':
                 for k in self.observations:
-                    observations_sample[k][sample_idx] = self.observations[k][sample_ep, sample_step].cuda()
+                    observations_sample[k][sample_idx] = self.observations[k][sample_ep, sample_step]#.cuda()
                 memory_eps.append(sample_ep)
                 memory_steps.append([memory_start, sample_step])
             else:
                 reverse_inds = torch.arange(sample_step, memory_start-1, -1)
-                embeddings_sample[sample_idx, :memory_size] = self.pre_embeddings[sample_ep, reverse_inds].cuda()
-                poses_sample[sample_idx, :memory_size] = self.poses[sample_ep, reverse_inds].cuda()
+                embeddings_sample[sample_idx, :memory_size] = self.pre_embeddings[sample_ep, reverse_inds]#.cuda()
+                poses_sample[sample_idx, :memory_size] = self.poses[sample_ep, reverse_inds]#.cuda()
             #debug_sample[sample_idx, :memory_size+1] = self.for_debug[sample_ep, memory_start:sample_step+1].cuda()
             #print(debug_sample[sample_idx].squeeze().int().tolist())
             memory_masks_sample[sample_idx, :memory_size] = 1.
-            states_sample[sample_idx] = self.states[sample_ep, sample_step].cuda()
-            rewards_sample[sample_idx] = self.rewards[sample_ep, sample_step].cuda()
-            action_log_probs_sample[sample_idx] = self.action_log_probs[sample_ep, sample_step].cuda()
-            actions_sample[sample_idx] = self.actions[sample_ep, sample_step].cuda()
-            masks_sample[sample_idx] = self.masks[sample_ep, sample_step].cuda()
+            states_sample[sample_idx] = self.states[sample_ep, sample_step]#.cuda()
+            rewards_sample[sample_idx] = self.rewards[sample_ep, sample_step]#.cuda()
+            action_log_probs_sample[sample_idx] = self.action_log_probs[sample_ep, sample_step]#.cuda()
+            actions_sample[sample_idx] = self.actions[sample_ep, sample_step]#.cuda()
+            masks_sample[sample_idx] = self.masks[sample_ep, sample_step]#.cuda()
             sample_idx += 1
 
+        for k in observations_sample:
+            observations_sample[k] = observations_sample[k].cuda()
+        states_sample = states_sample.cuda()
+        embeddings_sample = embeddings_sample.cuda()
+        poses_sample = poses_sample.cuda()
+        rewards_sample = rewards_sample.cuda()
+        values_sample = values_sample.cuda()
+        returns_sample = returns_sample.cuda()
+        action_log_probs_sample = action_log_probs_sample.cuda()
+        actions_sample = actions_sample.cuda()
+        masks_sample = masks_sample.cuda()
+        memory_masks_sample = memory_masks_sample.cuda()
 
         batch_size = 64
         if mode == 'pretrain':
