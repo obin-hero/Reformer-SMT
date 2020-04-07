@@ -121,6 +121,7 @@ def main(cfg):
             actor_critic.perception_unit.Memory.embed_network.load_state_dict(state_dict)
             print('loaded {}'.format(cfg.training.pretrain_load))
         except:
+            raise
             print('failed to load any pretrained weight')
 
     uuid = cfg.saving.version
