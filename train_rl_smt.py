@@ -213,7 +213,7 @@ def main(cfg):
             training_mode = 'train'
             rollouts.agent_memory_size = cfg.training.max_memory_size
             actor_critic.perception_unit.Memory.max_memory_size = cfg.training.max_memory_size
-            #actor_critic.perception_unit.Memory.freeze_embedding_network()
+            actor_critic.perception_unit.Memory.reset_all()
             agent.change_optimizer()
             print('changed training mode')
             save_network(actor_critic.perception_unit.Memory.embed_network, os.path.join(save_dir, 'pretrain_ep%06d.pth'%(epoch)))
