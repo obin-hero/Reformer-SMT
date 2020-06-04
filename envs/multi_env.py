@@ -449,6 +449,7 @@ class VectorEnv:
 
 
 import torch
+from gym.spaces.dict_space import Dict
 class PreprocessVectorEnv(VectorEnv):
     def __init__(
             self,
@@ -471,10 +472,16 @@ class PreprocessVectorEnv(VectorEnv):
         self.keys = []
         shapes, dtypes = {}, {}
 
-        for key, box in obs_space.items():
-            shapes[key] = box.shape
-            dtypes[key] = box.dtype
-            self.keys.append(key)
+        if isinstance(obs_space, Dict):
+            for key, box in obs_space.spaces.items():
+                shapes[key] = box.shape
+                dtypes[key] = box.dtype
+                self.keys.append(key)
+        else:
+            for key, box in obs_space.items():
+                shapes[key] = box.shape
+                dtypes[key] = box.dtype
+                self.keys.append(key)
 
         self.buf_obs = {k: np.zeros((self.num_envs,) + tuple(shapes[k]), dtype=dtypes[k]) for k in self.keys}
         self.buf_dones = np.zeros((self.num_envs,), dtype=np.bool)

@@ -6,6 +6,7 @@ C.seed = 0
 C.action_dim = 5
 C.pose_dim = 5
 C.is_train = True
+C.img_size = 64
 
 C.task = CfgNode()
 C.task.env_fn = 'vizdoom_make_env_fn'
@@ -14,6 +15,8 @@ C.task.explorer = CfgNode()
 C.task.explorer.num_keys=6
 C.task.explorer.map_size=20
 C.task.explorer.num_maps=1000
+C.task.habitat = CfgNode()
+C.task.habitat.config_file = 'configs/objectnav_mp3d.yaml'
 
 C.saving = CfgNode()
 C.saving.version = 'base'
@@ -98,6 +101,10 @@ C.RL.OFF_POLICY_EPOCH = 8
 C.RL.RESULTS_LOG_FILE= 'result_log.pkl'
 C.RL.REWARD_LOG_FILE= 'rewards.pkl'
 C.RL.NUM_FRAMES = 1e+9
+C.RL.SLACK_REWARD = - 0.01
+C.RL.SUCCESS_REWARD = 2.5
+C.RL.REWARD_MEASURE = 'distance_to_goal'
+C.RL.SUCCESS_MEASURE = "spl"
 
 
 

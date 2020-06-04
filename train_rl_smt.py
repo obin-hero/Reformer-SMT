@@ -28,7 +28,7 @@ import time
 from gym import logger
 from ob_utils import mkdir
 ## ---------------------------------
-from envs.make_env_fn import explorer_make_env_fn, vizdoom_make_env_fn, deeplab_make_env_fn
+from envs.make_env_fn import *
 from envs.multi_env import PreprocessVectorEnv, MultiWrapper
 
 from rl.stackedobservation import StackedSensorDictStorage
@@ -151,7 +151,7 @@ def main(cfg):
 
     # cfg training resume
 
-    observation_space = envs.observation_space
+    observation_space = envs.observation_space if hasattr(envs.observation_space, 'items') else envs.observation_space.spaces
     retained_obs_shape = {k: v.shape
                           for k, v in observation_space.items()
                           }#if k in cfg.network.inputs}
@@ -212,6 +212,7 @@ def main(cfg):
             training_mode = 'train'
             rollouts.agent_memory_size = cfg.training.max_memory_size
             actor_critic.perception_unit.Memory.max_memory_size = cfg.training.max_memory_size
+            actor_critic.perception_unit.Memory.reset_all()
             #actor_critic.perception_unit.Memory.freeze_embedding_network()
             agent.change_optimizer()
             print('changed training mode')

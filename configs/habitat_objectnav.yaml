@@ -1,0 +1,4 @@
+task:
+  env_fn: 'habitat_objectnav_make_env_fn'
+training:
+  num_envs: 1

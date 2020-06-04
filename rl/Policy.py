@@ -127,11 +127,8 @@ class RecurrentPolicyWithBase(BasePolicy):
                                lambda x: nn.init.constant_(x, 0))
         self.critic_linear = init_(nn.Linear(self.perception_unit.output_size, 1))
 
-        if action_space.__class__.__name__ == "Discrete":
-            num_outputs = action_space.n
-            self.dist = Categorical(internal_state_size, num_outputs)
-        else:
-            raise NotImplementedError
+        num_outputs = action_space.n
+        self.dist = Categorical(internal_state_size, num_outputs)
 
         self.l2 = nn.MSELoss()
         self.l1 = nn.L1Loss()
