@@ -257,8 +257,8 @@ class RolloutSensorDictReplayBuffer(object):
 
 
         batch_values_sample = []
-        for n in range(num_of_batch):
-            with torch.no_grad():
+        with torch.no_grad():
+            for n in range(num_of_batch):
                 batch_value = self.actor_critic.get_value(batch_memory_sample[n],
                                                           batch_memory_states[n],
                                                           batch_memory_masks[n],

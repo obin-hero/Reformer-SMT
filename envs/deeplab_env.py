@@ -61,6 +61,7 @@ class DeepmindLabEnv(gym.Env):
         self.stuck_flag = 0
         self.success = 0
         self.total_reward = 0
+        self.progress = 0.0
 
     def step(self, action):
         if isinstance(action, dict): action = action['action']
@@ -80,12 +81,12 @@ class DeepmindLabEnv(gym.Env):
         pose_yaw = self._last_observation['DEBUG.POS.ROT'][1]/180. * np.pi
 
         if self.prev_pose is not None:
-            progress = np.sqrt(((pose_x - self.prev_pose[0])**2 + (pose_y - self.prev_pose[1])**2))
-        else: progress = 0.0
-        if progress < 0.02 :
+            self.progress = np.sqrt(((pose_x - self.prev_pose[0])**2 + (pose_y - self.prev_pose[1])**2))
+        else: self.progress = 0.0
+        if self.progress < 0.01 :
             self.stuck_flag += 1
         else: self.stuck_flag = 0 
-        if self.stuck_flag > 20 :
+        if self.stuck_flag > 40 :
             done = True
             self.stuck_flag = 0.0
         self.prev_pose = [pose_x, pose_y]
@@ -110,6 +111,7 @@ class DeepmindLabEnv(gym.Env):
         self.stuck_flag = 0
         self.success = 0
         self.total_reward = 0
+        self.progress = 0.0
         return obs
 
     def seed(self, seed = None):
@@ -128,6 +130,7 @@ class DeepmindLabEnv(gym.Env):
             view_img = cv2.resize(view_img, dsize=None, fx=2.0, fy=2.0)
             #print(view_img.shape)
             cv2.putText(view_img, 'step %d reward: %.2f'%(self.time_t, self.total_reward), (140, 110), cv2.FONT_HERSHEY_PLAIN, 0.5, (255, 255, 255), 1)
+            cv2.putText(view_img, 'progress %.3f'%(self.progress), (140,120), cv2.FONT_HERSHEY_PLAIN, 0.5, (255,255,255), 1)
             return view_img
         elif mode == 'human':
             obs = self._lab.observations()[self._colors]
